@@ -2,18 +2,25 @@ package sdhash
 
 import "math"
 
+// Configuration defaults for the sdbf algorithm. Each of these values is
+// snapshotted into the sdbf struct at construction time; the package-level
+// vars are never read during digest computation. It is therefore safe to
+// update these defaults between constructions without any synchronization,
+// and changing them has no effect on digests that are already in progress
+// or complete.
 var (
-	BfSize         uint32 = 256    // BfSize is the size of each bloom filters
+	BfSize         uint32 = 256    // BfSize is the size in bytes of each bloom filter.
 	PopWinSize     uint32 = 64     // PopWinSize is the size of the sliding window used to hash input.
-	MaxElem        uint32 = 160    // MaxElem is maximum number of elements in each bloom filter in stream mode.
-	MaxElemDd      uint32 = 192    // MaxElem is maximum number of elements in each bloom filter in block mode.
-	Threshold      uint32 = 16     // Threshold is the minimum value of the score above witch chunks are considered.
+	MaxElem        uint32 = 160    // MaxElem is the maximum number of elements per bloom filter in stream mode.
+	MaxElemDd      uint32 = 192    // MaxElemDd is the maximum number of elements per bloom filter in block mode.
+	Threshold      uint32 = 16     // Threshold is the minimum score for a chunk position to be hashed.
 	BlockSize             = 4 * kB // BlockSize is the block size used to generate chunk ranks.
 	EntropyWinSize        = 64     // EntropyWinSize is the entropy window size used to generate chunk ranks.
 )
 
 const (
-	MinFileSize = 512 // Minimum file size for a Sdbf file.
+	// MinFileSize is the minimum input size (in bytes) required to compute a digest.
+	MinFileSize = 512
 
 	kB           = 1024
 	mB           = kB * kB
@@ -109,32 +116,21 @@ var cutoffs64 = []uint32{
 	3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2,
 }
 
-var bits = []uint8{0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80}
-
-var bitCount16 = [64 * kB]uint8{}
+var bitPositions = []uint8{0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80}
 
 var entropy64Int [65]uint64
 
 func init() {
-	// init bitCount16
-	for b := 0; b < 64*kB; b++ {
-		for bit := 0; bit < 16; bit++ {
-			if b&0x1<<bit != 0 {
-				bitCount16[b]++
-			}
-		}
-	}
-
-	// init entropy64Int
+	// Precompute scaled entropy contributions for each possible byte-frequency count.
 	for i := 1; i <= 64; i++ {
 		p := float64(i) / 64
 		entropy64Int[i] = uint64((-p * (math.Log(p) / math.Log(2)) / 6) * entropyScale)
 	}
 }
 
-// entropy64InitInt does a baseline entropy computation for a 64-byte buffer (int64 version, to be called periodically)
+// entropy64InitInt performs a full entropy computation for a 64-byte buffer.
 func entropy64InitInt(buffer []uint8, ascii []uint8) uint64 {
-	memsetU8(ascii, 0)
+	clear(ascii)
 	for i := 0; i < 64; i++ {
 		ascii[buffer[i]]++
 	}
@@ -147,7 +143,7 @@ func entropy64InitInt(buffer []uint8, ascii []uint8) uint64 {
 	return entropy
 }
 
-// entropy64IncInt does an incremental (rolling) update to entropy computation (int64 version)
+// entropy64IncInt performs an incremental (rolling) entropy update for a 64-byte window.
 func entropy64IncInt(prevEntropy uint64, buffer []uint8, ascii []uint8) uint64 {
 	if buffer[0] == buffer[64] {
 		return prevEntropy
