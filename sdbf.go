@@ -207,9 +207,6 @@ func createSdbf(buffer []uint8, ddBlockSize uint32, initialIndex BloomFilter, se
 		index:         initialIndex,
 		searchIndexes: searchIndexes,
 	}
-	if sd.index == nil {
-		sd.index = NewBloomFilter()
-	}
 	if bf, err := newBloomFilter(bigFilter, 5, bigFilterElem); err != nil {
 		panic(err)
 	} else {
