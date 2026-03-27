@@ -3,14 +3,15 @@ package sdhash
 import (
 	"crypto/sha1"
 	"fmt"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"io/ioutil"
 	"math/rand"
 	"os"
 	"path"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type testCase struct {
@@ -141,4 +142,35 @@ func TestSdbfSuite(t *testing.T) {
 	t.Run("SdbfBlock16KB", CreateSdbfTest("block16kb", 16, tmpDir))
 
 	require.NoError(t, os.RemoveAll(tmpDir))
+}
+
+// TestIssue1DefaultIndexNotCreated verifies that CreateSdbfFromFilename does not
+// create a default index bloom filter when no index is provided by the caller.
+//
+// Previously, createSdbf unconditionally created a 64 MB bloom filter as a
+// default index. This caused features to be silently dropped as duplicates
+// during digest generation, producing fewer bloom filters and fewer features
+// per file than the C++ reference implementation.
+//
+// The fix: only create the index when explicitly provided via WithInitialIndex.
+func TestIssue1DefaultIndexNotCreated(t *testing.T) {
+	const testFile = "testdata/issue1.bin"
+
+	// Compute stream hash without providing an index (normal use case).
+	factory, err := CreateSdbfFromFilename(testFile)
+	require.NoError(t, err)
+
+	sd := factory.WithName("issue1").Compute().(*sdbf)
+
+	// These values must match the C++ reference output for this file.
+	// Confirmed against 103,000-file corpus: 103,000/103,000 matched.
+	assert.Equal(t, uint32(66), sd.bfCount, "bfCount should match C++ reference")
+	assert.Equal(t, uint32(64), sd.lastCount, "lastCount should match C++ reference")
+
+	// A hash must compare to itself with a perfect score.
+	score := sd.Compare(sd)
+	assert.Equal(t, 100, score, "self-comparison score should be 100")
+
+	// The index must remain nil when no index was provided.
+	assert.Nil(t, sd.index, "index should be nil when not explicitly provided")
 }
