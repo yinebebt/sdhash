@@ -186,7 +186,7 @@
       same "printed page" as the copyright notice for easier
       identification within third-party archives.
 
-   Copyright [yyyy] [name of copyright owner]
+   Copyright 2026 utkonos
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -206,3 +206,15 @@ This software is a translation of sdhash into the golang language,
 which was originally written by Vassil Roussev and Candice Quates
 in 2013. The original license of sdhash has been inserted into the root
 of the project, under the name of SDHASH_LICENSE.
+
+===============================================================================
+
+This repository is a fork of github.com/eciavatta/sdhash, which is itself
+a translation of the original sdhash C++ implementation into Go. This fork
+modernizes the codebase to current Go idioms, removes deprecated dependencies,
+and corrects algorithmic bugs found by comparison against the C++ reference
+implementation using a 103,000-file corpus.
+
+NOTE: the file SDHASH_LICENSE was a simple, unedited boilerplate Apache License
+It has been removed and all licensing content and information has been merged
+into this LICENSE file.
