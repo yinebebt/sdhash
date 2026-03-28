@@ -47,7 +47,7 @@ if err != nil {
     log.Fatal(err)
 }
 
-digest, err := factory.WithBlockSize(65536).Compute()
+digest, err := factory.WithBlockSize(65536).Compute()  // 64 KiB blocks — see Modes section for guidance
 if err != nil {
     log.Fatal(err)
 }
