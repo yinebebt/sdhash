@@ -142,9 +142,32 @@ The name field is hardcoded to `-` with a length of `1`. This library treats dig
 
 ## Modes
 
-**Stream mode** (default) treats the input as a single stream. For inputs larger than 32 MiB, rank and score computation is parallelized across 32 MiB chunks before a sequential bloom filter insertion pass. The insertion pass is sequential to preserve the cross-chunk deduplication behavior that is part of the algorithm.
+**Stream mode** (default) treats the input as a single stream and produces a single digest representing the file as a whole. Two stream digests score high when the files share broadly similar content across their full length. For inputs larger than 32 MiB, rank and score computation is parallelized across 32 MiB chunks before a sequential bloom filter insertion pass. The insertion pass is sequential to preserve the cross-chunk deduplication behavior that is part of the algorithm.
 
-**DD mode** (`WithBlockSize`) produces one bloom filter per aligned block, enabling block-level similarity comparisons. Each block is processed independently and in parallel. A remainder block is included if it is at least `MinFileSize` bytes.
+**DD mode** (`WithBlockSize`) divides the input into fixed-size blocks and produces one bloom filter per block. Two DD digests score high when the files share similar content within corresponding blocks. This enables localized similarity detection: you can identify which regions of two files are similar even when the files differ overall. Each block is processed independently and in parallel. A remainder block is included if it is at least `MinFileSize` bytes.
+
+### Choosing a block size for DD mode
+
+The block size controls the granularity of similarity detection. The rule is: **the block size should be smaller than the smallest shared region you want to detect.** A shared region smaller than one block may fall across a boundary and be missed.
+
+**Hard constraints:**
+- Minimum: `MinFileSize` (512 bytes). Blocks smaller than this are skipped.
+- Maximum: no hard limit, but a block size larger than the input produces only one filter, which is equivalent to stream mode.
+- Must be a meaningful fraction of the input size — if the block size is close to the input size, you get very few filters and comparison becomes unreliable.
+
+**Practical ranges for PE malware analysis:**
+
+| Block size | Use case |
+|---|---|
+| 4096 – 16384 | Shared functions or small code regions |
+| 65536 – 262144 | Shared sections, overlays, or packed regions |
+| 1048576+ | High-level structural similarity across large files |
+
+A block size of 65536 (64 KiB) is a reasonable starting point for general PE analysis. Smaller values give finer detection but produce more filters, larger digests, and slower comparisons. Larger values are coarser but faster.
+
+If you are building a UI with a slider, powers of two in the range 4096 to 1048576 cover all practical use cases. Presenting the values on a logarithmic scale reflects how the tradeoff actually behaves: the difference between 4096 and 8192 is much more significant than the difference between 524288 and 1048576.
+
+Note that stream mode and DD mode answer different questions and are best used together. Stream mode tells you whether two files are broadly similar. DD mode tells you where they are similar. A pair that scores low in stream mode but has specific blocks scoring high in DD mode is a strong signal of code reuse in a specific region.
 
 ## Concurrency
 
