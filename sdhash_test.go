@@ -29,11 +29,11 @@ import (
 // ├── 00130000  newBloomFilter invalid size
 // └── 00140000  mustNewBloomFilter panic
 //
-// III. common.go
+// III. entropy.go
 // ├── 00150000  entropy64IncInt clamp to zero
 // └── 00160000  entropy64IncInt clamp to entropyScale
 //
-// IV. core.go
+// IV. generate.go + score.go
 // ├── 00170000  sdbfScore zero bfCount
 // ├── 00180000  sdbfScore denominator zero
 // ├── 00190000  generateChunkSdbf multi-chunk parallel
@@ -41,7 +41,7 @@ import (
 // ├── 00210000  generateChunkSdbf exactly one chunk
 // └── 00220000  generateChunkSdbf multi-chunk sparse last filter
 //
-// V. digest.go
+// V. sdhash.go
 // ├── 00230000  ParseSdbfFromString error cases
 // ├── 00240000  ParseSdbfFromString stream without trailing newline
 // ├── 00250000  CompareSample non-zero sample
@@ -333,7 +333,7 @@ func TestMustNewBloomFilter_PanicsOnInvalidSize(t *testing.T) {
 }
 
 // =========================================================================
-// III. common.go
+// III. entropy.go
 // =========================================================================
 
 // ---------------------------------------------------------------------------
@@ -391,7 +391,7 @@ func TestEntropy64IncInt_ClampToEntropyScale(t *testing.T) {
 }
 
 // =========================================================================
-// IV. core.go
+// IV. generate.go + score.go
 // =========================================================================
 
 // ---------------------------------------------------------------------------
@@ -544,7 +544,7 @@ func TestGenerateChunkSdbf_MultiChunk_SparseLastFilter(t *testing.T) {
 }
 
 // =========================================================================
-// V. digest.go
+// V. sdhash.go
 // =========================================================================
 
 // ---------------------------------------------------------------------------
