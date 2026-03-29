@@ -16,7 +16,9 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"os"
+	"runtime"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -84,6 +86,27 @@ func loadCategoryRef(t *testing.T, path string) map[string]string {
 	return ma
 }
 
+// corpusWorkItem holds everything needed to compute a hash for one file.
+// It is produced sequentially (preserving seedRng consumption order) and
+// consumed concurrently by the worker pool.
+type corpusWorkItem struct {
+	filename string
+	data     []byte
+	catName  string
+}
+
+// corpusResult holds the outcome of hashing one work item.
+// The index field ties it back to the original ordered position so Phase 3
+// can iterate results in deterministic order without any sorting.
+type corpusResult struct {
+	index    int
+	filename string
+	digest   string
+	density  float64
+	dataLen  int
+	err      error
+}
+
 // =========================================================================
 // I. Reference corpus — stream mode
 // =========================================================================
@@ -116,6 +139,11 @@ func TestCorpus_StreamMode(t *testing.T) {
 
 		sizes := generateSizes(seedRng, n, lo, hi)
 
+		// ------------------------------------------------------------------
+		// Phase 1 — Sequential: consume seedRng and generate data.
+		// No hash computation here; we only collect work items.
+		// ------------------------------------------------------------------
+		workItems := make([]corpusWorkItem, 0, len(sizes))
 		for i, size := range sizes {
 			fileSeed := int64(seedRng.Uint64())
 			filename := fmt.Sprintf("%s/%s_%06d_%d.bin", cat.name, cat.name, i, size)
@@ -127,41 +155,88 @@ func TestCorpus_StreamMode(t *testing.T) {
 				continue
 			}
 
-			factory, err := CreateSdbfFromBytes(data)
-			if err != nil {
-				t.Errorf("stream: %s: CreateSdbfFromBytes error: %v", filename, err)
+			workItems = append(workItems, corpusWorkItem{
+				filename: filename,
+				data:     data,
+				catName:  cat.name,
+			})
+		}
+
+		// ------------------------------------------------------------------
+		// Phase 2 — Parallel: compute hashes with a bounded worker pool.
+		// Each goroutine writes to its own index in results; no mutex needed.
+		// ------------------------------------------------------------------
+		results := make([]corpusResult, len(workItems))
+
+		sem := make(chan struct{}, runtime.NumCPU())
+		var wg sync.WaitGroup
+
+		for idx, item := range workItems {
+			wg.Add(1)
+			sem <- struct{}{} // acquire a slot
+			go func(idx int, item corpusWorkItem) {
+				defer wg.Done()
+				defer func() { <-sem }() // release slot
+
+				res := corpusResult{
+					index:    idx,
+					filename: item.filename,
+					dataLen:  len(item.data),
+				}
+
+				factory, err := CreateSdbfFromBytes(item.data)
+				if err != nil {
+					res.err = fmt.Errorf("CreateSdbfFromBytes error: %w", err)
+					results[idx] = res
+					return
+				}
+				sd, err := factory.Compute()
+				if err != nil {
+					res.err = fmt.Errorf("compute error: %w", err)
+					results[idx] = res
+					return
+				}
+				res.digest = strings.TrimRight(sd.String(), "\r\n")
+				res.density = sd.FeatureDensity()
+				results[idx] = res
+			}(idx, item)
+		}
+
+		wg.Wait()
+
+		// ------------------------------------------------------------------
+		// Phase 3 — Sequential: compare results against the reference CSV.
+		// Iterating in original order preserves deterministic test output.
+		// ------------------------------------------------------------------
+		for _, res := range results {
+			if res.err != nil {
+				t.Errorf("stream: %s: %v", res.filename, res.err)
 				continue
 			}
-			sd, err := factory.Compute()
-			if err != nil {
-				t.Errorf("stream: %s: Compute error: %v", filename, err)
-				continue
-			}
-			got := strings.TrimRight(sd.String(), "\r\n")
 
 			totalChecked++
 			if totalChecked%10000 == 0 {
 				t.Logf("stream: checked %d files so far...", totalChecked)
 			}
 
-			want, ok := ref[filename]
+			want, ok := ref[res.filename]
 			if !ok {
-				t.Errorf("stream: %s: not found in reference CSV", filename)
+				t.Errorf("stream: %s: not found in reference CSV", res.filename)
 				totalMismatches++
 				continue
 			}
 
-			if got != want {
+			if res.digest != want {
 				wantPrefix := want
 				if len(wantPrefix) > 80 {
 					wantPrefix = wantPrefix[:80]
 				}
-				gotPrefix := got
+				gotPrefix := res.digest
 				if len(gotPrefix) > 80 {
 					gotPrefix = gotPrefix[:80]
 				}
 				t.Errorf("stream: %s: digest mismatch\n  want: %s\n  got:  %s\n  size=%d density=%g",
-					filename, wantPrefix, gotPrefix, len(data), sd.FeatureDensity())
+					res.filename, wantPrefix, gotPrefix, res.dataLen, res.density)
 				totalMismatches++
 			}
 		}
@@ -202,6 +277,11 @@ func TestCorpus_DDMode(t *testing.T) {
 
 		sizes := generateSizes(seedRng, n, lo, hi)
 
+		// ------------------------------------------------------------------
+		// Phase 1 — Sequential: consume seedRng and generate data.
+		// No hash computation here; we only collect work items.
+		// ------------------------------------------------------------------
+		workItems := make([]corpusWorkItem, 0, len(sizes))
 		for i, size := range sizes {
 			fileSeed := int64(seedRng.Uint64())
 			filename := fmt.Sprintf("%s/%s_%06d_%d.bin", cat.name, cat.name, i, size)
@@ -213,41 +293,88 @@ func TestCorpus_DDMode(t *testing.T) {
 				continue
 			}
 
-			factory, err := CreateSdbfFromBytes(data)
-			if err != nil {
-				t.Errorf("dd: %s: CreateSdbfFromBytes error: %v", filename, err)
+			workItems = append(workItems, corpusWorkItem{
+				filename: filename,
+				data:     data,
+				catName:  cat.name,
+			})
+		}
+
+		// ------------------------------------------------------------------
+		// Phase 2 — Parallel: compute hashes with a bounded worker pool.
+		// Each goroutine writes to its own index in results; no mutex needed.
+		// ------------------------------------------------------------------
+		results := make([]corpusResult, len(workItems))
+
+		sem := make(chan struct{}, runtime.NumCPU())
+		var wg sync.WaitGroup
+
+		for idx, item := range workItems {
+			wg.Add(1)
+			sem <- struct{}{} // acquire a slot
+			go func(idx int, item corpusWorkItem) {
+				defer wg.Done()
+				defer func() { <-sem }() // release slot
+
+				res := corpusResult{
+					index:    idx,
+					filename: item.filename,
+					dataLen:  len(item.data),
+				}
+
+				factory, err := CreateSdbfFromBytes(item.data)
+				if err != nil {
+					res.err = fmt.Errorf("CreateSdbfFromBytes error: %w", err)
+					results[idx] = res
+					return
+				}
+				sd, err := factory.WithBlockSize(corpusDDBlockSize).Compute()
+				if err != nil {
+					res.err = fmt.Errorf("compute error: %w", err)
+					results[idx] = res
+					return
+				}
+				res.digest = strings.TrimRight(sd.String(), "\r\n")
+				res.density = sd.FeatureDensity()
+				results[idx] = res
+			}(idx, item)
+		}
+
+		wg.Wait()
+
+		// ------------------------------------------------------------------
+		// Phase 3 — Sequential: compare results against the reference CSV.
+		// Iterating in original order preserves deterministic test output.
+		// ------------------------------------------------------------------
+		for _, res := range results {
+			if res.err != nil {
+				t.Errorf("dd: %s: %v", res.filename, res.err)
 				continue
 			}
-			sd, err := factory.WithBlockSize(corpusDDBlockSize).Compute()
-			if err != nil {
-				t.Errorf("dd: %s: Compute error: %v", filename, err)
-				continue
-			}
-			got := strings.TrimRight(sd.String(), "\r\n")
 
 			totalChecked++
 			if totalChecked%10000 == 0 {
 				t.Logf("dd: checked %d files so far...", totalChecked)
 			}
 
-			want, ok := ref[filename]
+			want, ok := ref[res.filename]
 			if !ok {
-				t.Errorf("dd: %s: not found in reference CSV", filename)
+				t.Errorf("dd: %s: not found in reference CSV", res.filename)
 				totalMismatches++
 				continue
 			}
 
-			if got != want {
+			if res.digest != want {
 				wantPrefix := want
 				if len(wantPrefix) > 80 {
 					wantPrefix = wantPrefix[:80]
 				}
-				gotPrefix := got
+				gotPrefix := res.digest
 				if len(gotPrefix) > 80 {
 					gotPrefix = gotPrefix[:80]
 				}
 				t.Errorf("dd: %s: digest mismatch\n  want: %s\n  got:  %s\n  size=%d density=%g",
-					filename, wantPrefix, gotPrefix, len(data), sd.FeatureDensity())
+					res.filename, wantPrefix, gotPrefix, res.dataLen, res.density)
 				totalMismatches++
 			}
 		}
