@@ -48,6 +48,17 @@ func putChunkSlice(s []uint16) {
 	chunkSlicePool.Put(&s)
 }
 
+// asciiPool reuses the 256-byte frequency table used by generateChunkRanks.
+// The allocation is small but called per-chunk, so pooling it reduces GC scan
+// pressure on high-throughput workloads.
+var asciiPool = sync.Pool{
+	New: func() any {
+		buf := new([]uint8)
+		*buf = make([]uint8, 256)
+		return buf
+	},
+}
+
 // generateChunkRanks generates entropy-based ranks for each position in fileBuffer.
 //
 // OPTIMIZATION HISTORY: Re-slicing chunkRanks at function entry to hint
@@ -58,7 +69,10 @@ func putChunkSlice(s []uint16) {
 // lookup and the incremental entropy update, not by bounds checks.
 func (sd *sdbf) generateChunkRanks(fileBuffer []uint8, chunkRanks []uint16) {
 	var entropy uint64
-	ascii := make([]uint8, 256)
+	asciiPtr := asciiPool.Get().(*[]uint8)
+	ascii := *asciiPtr
+	clear(ascii)
+	defer asciiPool.Put(asciiPtr)
 
 	limit := len(fileBuffer) - sd.entropyWinSize
 	for offset := 0; offset < limit; offset++ {
@@ -145,9 +159,11 @@ func (sd *sdbf) generateChunkScores(chunkRanks []uint16, chunkSize uint64, chunk
 // overhead on the bloom filter and bigFilter state without freeing any CPU
 // capacity. The sequential loop is the correct design.
 //
-// PROFILING NOTE: SHA1 accounts for roughly 5% of total CPU time. The
-// dominant costs are generateChunkScores (50%) and slice zeroing (25%).
-// Optimizing SHA1 would have negligible impact on overall throughput.
+// PROFILING NOTE: SHA1 accounts for roughly 1–5% of total CPU time
+// depending on hardware. The dominant cost is generateChunkScores (50–62%).
+// Slice zeroing (memclr from pooled slice reuse) varies from 7% on fast
+// desktop cores to 25% on many-core servers. Optimizing SHA1 would have
+// negligible impact on overall throughput.
 func (sd *sdbf) generateChunkHash(fileBuffer []uint8, chunkPos uint64, chunkScores []uint16, chunkSize uint64) {
 	bfCount := sd.bfCount
 	lastCount := sd.lastCount
