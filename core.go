@@ -21,6 +21,33 @@ func u32sha1(data []uint8) [5]uint32 {
 	return buf
 }
 
+// chunkSlicePool reuses []uint16 backing arrays across generateChunkRanks /
+// generateChunkScores calls to eliminate the dominant make() + GC overhead.
+var chunkSlicePool = sync.Pool{
+	New: func() any {
+		return (*[]uint16)(nil)
+	},
+}
+
+// getChunkSlice returns a zeroed []uint16 of the given length, reusing a
+// pooled backing array when one of sufficient capacity is available.
+func getChunkSlice(size int) []uint16 {
+	if v := chunkSlicePool.Get(); v != nil {
+		if sp := v.(*[]uint16); sp != nil && cap(*sp) >= size {
+			s := (*sp)[:size]
+			clear(s)
+			return s
+		}
+	}
+	return make([]uint16, size)
+}
+
+// putChunkSlice returns a slice to the pool for reuse. The caller must not
+// retain any reference to the slice after this call.
+func putChunkSlice(s []uint16) {
+	chunkSlicePool.Put(&s)
+}
+
 // generateChunkRanks generates entropy-based ranks for each position in fileBuffer.
 func (sd *sdbf) generateChunkRanks(fileBuffer []uint8, chunkRanks []uint16) {
 	var entropy uint64
@@ -186,8 +213,10 @@ func (sd *sdbf) generateChunkSdbf(fileBuffer []uint8, chunkSize uint64) {
 
 	// Single-chunk fast path: skip parallel overhead entirely.
 	if totalChunks <= 1 {
-		chunkRanks := make([]uint16, chunkSize)
-		chunkScores := make([]uint16, chunkSize)
+		chunkRanks := getChunkSlice(int(chunkSize))
+		defer putChunkSlice(chunkRanks)
+		chunkScores := getChunkSlice(int(chunkSize))
+		defer putChunkSlice(chunkScores)
 
 		if qt == 1 {
 			sd.generateChunkRanks(fileBuffer[:chunkSize], chunkRanks)
@@ -229,10 +258,11 @@ func (sd *sdbf) generateChunkSdbf(fileBuffer []uint8, chunkSize uint64) {
 		go func(idx uint64) {
 			defer wg.Done()
 			defer func() { <-sem }()
-			ranks := make([]uint16, chunkSize)
-			scores := make([]uint16, chunkSize)
+			ranks := getChunkSlice(int(chunkSize))
+			scores := getChunkSlice(int(chunkSize))
 			sd.generateChunkRanks(fileBuffer[chunkSize*idx:chunkSize*(idx+1)], ranks)
 			sd.generateChunkScores(ranks, chunkSize, scores, nil)
+			putChunkSlice(ranks)
 			results[idx] = chunkWork{scores: scores, size: chunkSize}
 		}(i)
 	}
@@ -245,10 +275,11 @@ func (sd *sdbf) generateChunkSdbf(fileBuffer []uint8, chunkSize uint64) {
 			// Allocate ranks at full chunkSize so the slice is always large
 			// enough regardless of rem; generateChunkRanks only writes up to
 			// len(fileBuffer)-entropyWinSize entries.
-			ranks := make([]uint16, chunkSize)
-			scores := make([]uint16, chunkSize)
+			ranks := getChunkSlice(int(chunkSize))
+			scores := getChunkSlice(int(chunkSize))
 			sd.generateChunkRanks(fileBuffer[qt*chunkSize:], ranks)
 			sd.generateChunkScores(ranks, rem, scores, nil)
+			putChunkSlice(ranks)
 			results[qt] = chunkWork{scores: scores, size: rem}
 		}()
 	}
@@ -263,6 +294,7 @@ func (sd *sdbf) generateChunkSdbf(fileBuffer []uint8, chunkSize uint64) {
 		r := results[i]
 		sd.generateChunkHash(fileBuffer, chunkPos, r.scores, r.size)
 		chunkPos += r.size
+		putChunkSlice(r.scores)
 	}
 
 	// Drop the last filter if its membership is too low (reduces false positives).
@@ -282,8 +314,10 @@ func (sd *sdbf) generateSingleBlockSdbf(fileBuffer []uint8, blockNum uint64) {
 	blockSize := uint64(sd.ddBlockSize)
 	var sum, allowed uint32
 	var scoreHistogram [66]int32
-	chunkRanks := make([]uint16, blockSize)
-	chunkScores := make([]uint16, blockSize)
+	chunkRanks := getChunkSlice(int(blockSize))
+	defer putChunkSlice(chunkRanks)
+	chunkScores := getChunkSlice(int(blockSize))
+	defer putChunkSlice(chunkScores)
 
 	sd.generateChunkRanks(fileBuffer, chunkRanks)
 	sd.generateChunkScores(chunkRanks, blockSize, chunkScores, scoreHistogram[:])
@@ -315,8 +349,10 @@ func (sd *sdbf) generateBlockSdbf(fileBuffer []uint8) {
 	wg.Wait()
 
 	if rem >= MinFileSize {
-		chunkRanks := make([]uint16, blockSize)
-		chunkScores := make([]uint16, blockSize)
+		chunkRanks := getChunkSlice(int(blockSize))
+		defer putChunkSlice(chunkRanks)
+		chunkScores := getChunkSlice(int(blockSize))
+		defer putChunkSlice(chunkScores)
 
 		remBuffer := fileBuffer[blockSize*qt : blockSize*qt+rem]
 		sd.generateChunkRanks(remBuffer, chunkRanks)
