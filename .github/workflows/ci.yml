@@ -56,3 +56,14 @@ jobs:
             echo "FAIL: coverage is $total, want 100.0%"
             exit 1
           fi
+
+  corpus:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.26.x'
+          cache: false
+      - run: go test -tags corpus -timeout 30m -count=1 ./...
