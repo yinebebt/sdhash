@@ -397,11 +397,14 @@ func (sd *sdbf) generateBlockSdbf(fileBuffer []uint8) {
 	qt := uint64(len(fileBuffer)) / blockSize
 	rem := uint64(len(fileBuffer)) % blockSize
 
+	sem := make(chan struct{}, runtime.NumCPU())
 	var wg sync.WaitGroup
 	for i := uint64(0); i < qt; i++ {
 		wg.Add(1)
+		sem <- struct{}{}
 		go func(idx uint64) {
 			defer wg.Done()
+			defer func() { <-sem }()
 			sd.generateSingleBlockSdbf(fileBuffer[blockSize*idx:blockSize*(idx+1)], idx)
 		}(i)
 	}

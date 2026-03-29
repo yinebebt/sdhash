@@ -21,6 +21,10 @@ import (
 //    https://github.com/malwarology/sdhash/issues/2
 // ├── 00070000  Degenerate stream digests
 // └── 00080000  DD mode no false positive
+//
+// III. Issue 3 — Unbounded goroutine spawning in generateBlockSdbf
+//    https://github.com/malwarology/sdhash/issues/3
+// └── 00090000  High block count DD mode
 
 // =========================================================================
 // I. Issue 1 — Hash Mismatch Between Reference Implementation and Go Implementation
@@ -221,4 +225,33 @@ func TestIssue2_DDModeNoFalsePositive(t *testing.T) {
 	score := ddA.Compare(ddB)
 	checkEqual(t, 0, score,
 		"issue2 DD comparison must be 0")
+}
+
+// =========================================================================
+// III. Issue 3 — Unbounded goroutine spawning in generateBlockSdbf
+// https://github.com/malwarology/sdhash/issues/3
+// =========================================================================
+
+// ---------------------------------------------------------------------------
+// 00090000  High block count DD mode
+// ---------------------------------------------------------------------------
+
+// TestIssue3_HighBlockCountDDMode verifies that computing a DD digest with a
+// small block size (1024 bytes) over a 1 MiB buffer — producing ~1024 blocks —
+// completes correctly without unbounded goroutine spawning. Without the
+// semaphore fix in generateBlockSdbf, this configuration spawns 1024+
+// goroutines simultaneously.
+func TestIssue3_HighBlockCountDDMode(t *testing.T) {
+	t.Parallel()
+
+	data := randomBuf(1<<20, 50, 50)
+
+	factory, err := CreateSdbfFromBytes(data)
+	mustNoError(t, err)
+
+	const ddBlockSize = 1024
+	sd, err := factory.WithBlockSize(ddBlockSize).Compute()
+	mustNoError(t, err)
+
+	checkEqual(t, 100, sd.Compare(sd), "self-comparison must return 100")
 }
