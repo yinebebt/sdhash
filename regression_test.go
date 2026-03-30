@@ -47,6 +47,10 @@ import (
 // Issue 14 — CreateSdbfFromBytes retains caller's slice without copying
 //    https://github.com/malwarology/sdhash/issues/14
 // └── 00170000  Buffer mutation after factory creation
+//
+// Issue 15 — DD parsing fails on digests without trailing newline
+//    https://github.com/malwarology/sdhash/issues/15
+// └── 00180000  DD parse without trailing newline
 
 // =========================================================================
 // Issue 1 — Hash Mismatch Between Reference Implementation and Go Implementation
@@ -470,4 +474,37 @@ func TestIssue14_BufferMutationAfterFactory(t *testing.T) {
 	if first == second {
 		t.Errorf("digest computed before buffer mutation equals digest computed after: factory did not copy the buffer (regression: issue #14)")
 	}
+}
+
+// =========================================================================
+// Issue 15 — DD parsing fails on digests without trailing newline
+// https://github.com/malwarology/sdhash/issues/15
+// =========================================================================
+
+// ---------------------------------------------------------------------------
+// 00180000  DD parse without trailing newline
+// ---------------------------------------------------------------------------
+
+// TestIssue15_DDParseWithoutTrailingNewline verifies that ParseSdbfFromString
+// correctly decodes a DD digest string that has no trailing newline. Without
+// the EOF-tolerant fix, the last byte of the final block's base64 payload is
+// stripped along with the missing delimiter, causing a base64 decode error or
+// an incorrect bloom filter.
+func TestIssue15_DDParseWithoutTrailingNewline(t *testing.T) {
+	t.Parallel()
+
+	buf := randomBuf(1<<20, 70, 70)
+	sd := ddDigest(t, buf, 65536)
+
+	stripped := strings.TrimRight(sd.String(), "\n")
+	checkTrue(t, !strings.HasSuffix(stripped, "\n"),
+		"stripped digest must not end with a newline")
+
+	parsed, err := ParseSdbfFromString(stripped)
+	mustNoError(t, err, "ParseSdbfFromString must succeed on a DD digest without a trailing newline (regression: issue #15)")
+
+	checkEqual(t, sd.String(), parsed.String(),
+		"parsed digest String() must equal the original (regression: issue #15)")
+	checkEqual(t, 100, parsed.Compare(parsed),
+		"self-comparison of parsed digest must return 100 (regression: issue #15)")
 }
