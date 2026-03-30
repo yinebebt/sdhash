@@ -8,7 +8,7 @@ import (
 
 // Regression test index
 //
-// I. Issue 1 — Hash Mismatch Between Reference Implementation and Go Implementation
+// Issue 1 — Hash Mismatch Between Reference Implementation and Go Implementation
 //    https://github.com/eciavatta/sdhash/issues/1
 // ├── 00010000  Default index not created
 // ├── 00020000  Stream hash matches reference
@@ -17,22 +17,22 @@ import (
 // ├── 00050000  Round-trip stream reference
 // └── 00060000  Round-trip DD reference
 //
-// II. Issue 2 — Feature density detection for degenerate stream mode digests
+// Issue 2 — Feature density detection for degenerate stream mode digests
 //    https://github.com/malwarology/sdhash/issues/2
 // ├── 00070000  Degenerate stream digests
 // └── 00080000  DD mode no false positive
 //
-// III. Issue 3 — Unbounded goroutine spawning in generateBlockSdbf
+// Issue 3 — Unbounded goroutine spawning in generateBlockSdbf
 //    https://github.com/malwarology/sdhash/issues/3
 // └── 00090000  High block count DD mode
 //
-// IV. Issue 4 — Unbounded memory allocation in ParseSdbfFromString
+// Issue 4 — Unbounded memory allocation in ParseSdbfFromString
 //    https://github.com/malwarology/sdhash/issues/4
 // ├── 00100000  Parse oversized bfCount
 // └── 00110000  Parse zero bfSize
 
 // =========================================================================
-// I. Issue 1 — Hash Mismatch Between Reference Implementation and Go Implementation
+// Issue 1 — Hash Mismatch Between Reference Implementation and Go Implementation
 // https://github.com/eciavatta/sdhash/issues/1
 // =========================================================================
 
@@ -174,7 +174,7 @@ func TestIssue1_RoundTrip_DDReference(t *testing.T) {
 }
 
 // =========================================================================
-// II. Issue 2 — Feature density detection for degenerate stream mode digests
+// Issue 2 — Feature density detection for degenerate stream mode digests
 // https://github.com/malwarology/sdhash/issues/2
 // =========================================================================
 
@@ -233,7 +233,7 @@ func TestIssue2_DDModeNoFalsePositive(t *testing.T) {
 }
 
 // =========================================================================
-// III. Issue 3 — Unbounded goroutine spawning in generateBlockSdbf
+// Issue 3 — Unbounded goroutine spawning in generateBlockSdbf
 // https://github.com/malwarology/sdhash/issues/3
 // =========================================================================
 
@@ -262,7 +262,7 @@ func TestIssue3_HighBlockCountDDMode(t *testing.T) {
 }
 
 // =========================================================================
-// IV. Issue 4 — Unbounded memory allocation in ParseSdbfFromString
+// Issue 4 — Unbounded memory allocation in ParseSdbfFromString
 // https://github.com/malwarology/sdhash/issues/4
 // =========================================================================
 
