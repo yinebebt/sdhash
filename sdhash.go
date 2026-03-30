@@ -285,6 +285,12 @@ func ParseSdbfFromString(digest string) (Sdbf, error) {
 			return nil, fmt.Errorf("failed to decode buffer: %w", err)
 		}
 		sd.lastCount = uint32(lastCount)
+		if uint64(len(sd.buffer)) != bfCount*bfSize {
+			return nil, fmt.Errorf("stream buffer length %d does not match expected %d (bfCount=%d × bfSize=%d)", len(sd.buffer), bfCount*bfSize, bfCount, bfSize)
+		}
+		if lastCount > maxElem {
+			return nil, fmt.Errorf("lastCount %d exceeds maxElem %d", lastCount, maxElem)
+		}
 
 	case magicDD:
 		ddBlockSize, err := readUint64Field(r)
@@ -303,15 +309,21 @@ func ParseSdbfFromString(digest string) (Sdbf, error) {
 				return nil, fmt.Errorf("failed to parse element count for filter %d: %w", i, err)
 			}
 			sd.elemCounts[i] = uint16(elem)
+			if elem > maxElem {
+				return nil, fmt.Errorf("element count %d for filter %d exceeds maxElem %d", elem, i, maxElem)
+			}
 
 			// Each block's base64 is delimited by ':' except the last, which ends at '\n' (or EOF).
 			encodedBuffer, _ := r.ReadString(':')
 			encodedStr := encodedBuffer[:len(encodedBuffer)-1]
 
 			dst := sd.buffer[i*bfSize : i*bfSize+bfSize]
-			_, err = base64.StdEncoding.Decode(dst, []byte(encodedStr))
+			n, err := base64.StdEncoding.Decode(dst, []byte(encodedStr))
 			if err != nil {
 				return nil, fmt.Errorf("failed to decode data for filter %d: %w", i, err)
+			}
+			if n != int(bfSize) {
+				return nil, fmt.Errorf("decoded block %d length %d does not match bfSize %d", i, n, bfSize)
 			}
 		}
 		sd.ddBlockSize = uint32(ddBlockSize)

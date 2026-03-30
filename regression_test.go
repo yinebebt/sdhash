@@ -1,6 +1,8 @@
 package sdhash
 
 import (
+	"encoding/base64"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -30,6 +32,13 @@ import (
 //    https://github.com/malwarology/sdhash/issues/4
 // ├── 00100000  Parse oversized bfCount
 // └── 00110000  Parse zero bfSize
+//
+// Issue 10 — ParseSdbfFromString panics on truncated base64 payload
+//    https://github.com/malwarology/sdhash/issues/10
+// ├── 00120000  Parse truncated stream buffer
+// ├── 00130000  Parse stream lastCount exceeds maxElem
+// ├── 00140000  Parse DD block too short
+// └── 00150000  Parse DD element count exceeds maxElem
 
 // =========================================================================
 // Issue 1 — Hash Mismatch Between Reference Implementation and Go Implementation
@@ -302,4 +311,86 @@ func TestIssue4_ParseZeroBfSize(t *testing.T) {
 	_, err := ParseSdbfFromString(digest)
 	checkError(t, err,
 		"ParseSdbfFromString must return an error for a bfSize of zero (regression: issue #4)")
+}
+
+// =========================================================================
+// Issue 10 — ParseSdbfFromString panics on truncated base64 payload
+// https://github.com/malwarology/sdhash/issues/10
+// =========================================================================
+
+// ---------------------------------------------------------------------------
+// 00120000  Parse truncated stream buffer
+// ---------------------------------------------------------------------------
+
+// TestIssue10_ParseTruncatedStreamBuffer verifies that a stream digest whose
+// base64 payload decodes to fewer bytes than bfCount × bfSize is rejected by
+// ParseSdbfFromString rather than causing a slice-bounds panic in computeHamming.
+func TestIssue10_ParseTruncatedStreamBuffer(t *testing.T) {
+	t.Parallel()
+
+	// bfCount=1, bfSize=256: the buffer must be 256 bytes, but we supply only 128.
+	payload := base64.StdEncoding.EncodeToString(make([]byte, 128))
+	digest := fmt.Sprintf("sdbf:03:1:-:1048576:sha1:256:5:7ff:160:1:100:%s\n", payload)
+
+	_, err := ParseSdbfFromString(digest)
+	checkError(t, err,
+		"ParseSdbfFromString must return an error when the base64 payload decodes to fewer bytes than bfCount × bfSize (regression: issue #10)")
+}
+
+// ---------------------------------------------------------------------------
+// 00130000  Parse stream lastCount exceeds maxElem
+// ---------------------------------------------------------------------------
+
+// TestIssue10_ParseStreamLastCountExceedsMaxElem verifies that a stream digest
+// where lastCount is greater than maxElem is rejected by ParseSdbfFromString.
+func TestIssue10_ParseStreamLastCountExceedsMaxElem(t *testing.T) {
+	t.Parallel()
+
+	// maxElem=160, lastCount=999: lastCount must not exceed maxElem.
+	// The buffer is a valid 256-byte payload so the length check passes first.
+	payload := base64.StdEncoding.EncodeToString(make([]byte, 256))
+	digest := fmt.Sprintf("sdbf:03:1:-:1048576:sha1:256:5:7ff:160:1:999:%s\n", payload)
+
+	_, err := ParseSdbfFromString(digest)
+	checkError(t, err,
+		"ParseSdbfFromString must return an error when lastCount exceeds maxElem (regression: issue #10)")
+}
+
+// ---------------------------------------------------------------------------
+// 00140000  Parse DD block too short
+// ---------------------------------------------------------------------------
+
+// TestIssue10_ParseDDBlockTooShort verifies that a DD digest where a block's
+// base64 decodes to fewer bytes than bfSize is rejected by ParseSdbfFromString
+// rather than leaving the destination slice partially filled.
+func TestIssue10_ParseDDBlockTooShort(t *testing.T) {
+	t.Parallel()
+
+	// bfCount=1, bfSize=256, elemCount=0x64 (100 ≤ maxElem=160): the block
+	// payload must be 256 bytes, but we supply only 128.
+	payload := base64.StdEncoding.EncodeToString(make([]byte, 128))
+	digest := fmt.Sprintf("sdbf-dd:03:1:-:1048576:sha1:256:5:7ff:160:1:65536:64:%s\n", payload)
+
+	_, err := ParseSdbfFromString(digest)
+	checkError(t, err,
+		"ParseSdbfFromString must return an error when a DD block's base64 decodes to fewer bytes than bfSize (regression: issue #10)")
+}
+
+// ---------------------------------------------------------------------------
+// 00150000  Parse DD element count exceeds maxElem
+// ---------------------------------------------------------------------------
+
+// TestIssue10_ParseDDElemCountExceedsMaxElem verifies that a DD digest where
+// a block's element count exceeds maxElem is rejected by ParseSdbfFromString.
+func TestIssue10_ParseDDElemCountExceedsMaxElem(t *testing.T) {
+	t.Parallel()
+
+	// maxElem=192 (0xc0), elemCount=0xff (255): 255 > 192 must be rejected.
+	// The block payload is a valid 256-byte buffer so the length check would pass.
+	payload := base64.StdEncoding.EncodeToString(make([]byte, 256))
+	digest := fmt.Sprintf("sdbf-dd:03:1:-:1048576:sha1:256:5:7ff:192:1:65536:ff:%s\n", payload)
+
+	_, err := ParseSdbfFromString(digest)
+	checkError(t, err,
+		"ParseSdbfFromString must return an error when a DD block element count exceeds maxElem (regression: issue #10)")
 }
