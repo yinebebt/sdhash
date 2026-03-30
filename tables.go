@@ -7,7 +7,6 @@ package sdhash
 // and changing them has no effect on digests that are already in progress
 // or complete.
 var (
-	BfSize         uint32 = 256    // BfSize is the size in bytes of each bloom filter.
 	PopWinSize     uint32 = 64     // PopWinSize is the size of the sliding window used to hash input.
 	MaxElem        uint32 = 160    // MaxElem is the maximum number of elements per bloom filter in stream mode.
 	MaxElemDd      uint32 = 192    // MaxElemDd is the maximum number of elements per bloom filter in block mode.
@@ -19,6 +18,7 @@ var (
 const (
 	// MinFileSize is the minimum input size (in bytes) required to compute a digest.
 	MinFileSize = 512
+	BfSize      = 256 // BfSize is the size in bytes of each bloom filter.
 
 	kB           = 1024
 	mB           = kB * kB

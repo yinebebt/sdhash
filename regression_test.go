@@ -39,6 +39,10 @@ import (
 // ├── 00130000  Parse stream lastCount exceeds maxElem
 // ├── 00140000  Parse DD block too short
 // └── 00150000  Parse DD element count exceeds maxElem
+//
+// Issue 11 — BfSize exported as mutable var but hardwired to 256 throughout
+//    https://github.com/malwarology/sdhash/issues/11
+// └── 00160000  Parse unsupported bfSize
 
 // =========================================================================
 // Issue 1 — Hash Mismatch Between Reference Implementation and Go Implementation
@@ -393,4 +397,32 @@ func TestIssue10_ParseDDElemCountExceedsMaxElem(t *testing.T) {
 	_, err := ParseSdbfFromString(digest)
 	checkError(t, err,
 		"ParseSdbfFromString must return an error when a DD block element count exceeds maxElem (regression: issue #10)")
+}
+
+// =========================================================================
+// Issue 11 — BfSize exported as mutable var but hardwired to 256 throughout
+// https://github.com/malwarology/sdhash/issues/11
+// =========================================================================
+
+// ---------------------------------------------------------------------------
+// 00160000  Parse unsupported bfSize
+// ---------------------------------------------------------------------------
+
+// TestIssue11_ParseUnsupportedBfSize verifies that a stream digest string with
+// bfSize set to 512 instead of the only supported value (256) is rejected by
+// ParseSdbfFromString. The rest of the digest is structurally valid: bfCount=1,
+// maxElem=160, lastCount=100, and a 512-byte base64 payload that satisfies the
+// bfCount × bfSize length check — ensuring the rejection is caused solely by
+// the unsupported bfSize value and not by any other validation.
+func TestIssue11_ParseUnsupportedBfSize(t *testing.T) {
+	t.Parallel()
+
+	// bfSize=512: the implementation is hardwired to 256-byte bloom filters, so
+	// any other value must be rejected before any buffer is allocated or decoded.
+	payload := base64.StdEncoding.EncodeToString(make([]byte, 512))
+	digest := fmt.Sprintf("sdbf:03:1:-:1048576:sha1:512:5:7ff:160:1:100:%s\n", payload)
+
+	_, err := ParseSdbfFromString(digest)
+	checkError(t, err,
+		"ParseSdbfFromString must return an error for a bfSize other than 256 (regression: issue #11)")
 }

@@ -266,6 +266,9 @@ func ParseSdbfFromString(digest string) (Sdbf, error) {
 	if bfSize == 0 {
 		return nil, errors.New("bloom filter size must be greater than zero")
 	}
+	if bfSize != BfSize {
+		return nil, fmt.Errorf("unsupported bloom filter size %d (only %d is supported)", bfSize, BfSize)
+	}
 	if bfCount > maxBfAlloc/bfSize {
 		return nil, fmt.Errorf("bloom filter allocation too large: %d filters × %d bytes exceeds %d byte limit", bfCount, bfSize, maxBfAlloc)
 	}
