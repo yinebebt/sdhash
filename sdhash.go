@@ -306,11 +306,13 @@ func ParseSdbfFromString(digest string) (Sdbf, error) {
 
 			// Each block's base64 is delimited by ':' except the last, which ends at '\n' (or EOF).
 			encodedBuffer, _ := r.ReadString(':')
-			tmpBuffer, err := base64.StdEncoding.DecodeString(encodedBuffer[:len(encodedBuffer)-1])
+			encodedStr := encodedBuffer[:len(encodedBuffer)-1]
+
+			dst := sd.buffer[i*bfSize : i*bfSize+bfSize]
+			_, err = base64.StdEncoding.Decode(dst, []byte(encodedStr))
 			if err != nil {
 				return nil, fmt.Errorf("failed to decode data for filter %d: %w", i, err)
 			}
-			copy(sd.buffer[i*bfSize:], tmpBuffer)
 		}
 		sd.ddBlockSize = uint32(ddBlockSize)
 
