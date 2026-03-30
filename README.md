@@ -112,7 +112,7 @@ func ParseSdbfFromString(string) (Sdbf, error)
 
 // Sdbf is a computed similarity digest.
 type Sdbf interface {
-    Compare(Sdbf) int                    // similarity score in [0, 100]
+    Compare(Sdbf) int                    // similarity score in [0, 100], or -1 if comparison cannot be performed
     String() string                      // wire-format encoding
     Size() uint64                        // total bloom filter data size in bytes
     InputSize() uint64                   // size of the original input

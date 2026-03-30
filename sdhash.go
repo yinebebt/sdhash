@@ -28,6 +28,8 @@ type Sdbf interface {
 
 	// Compare returns a similarity score in [0, 100] between this Sdbf and other.
 	// A score of 0 indicates very different data; 100 indicates identical data.
+	// Returns -1 if the comparison cannot be performed (e.g., either digest is
+	// degenerate and all filters fall below the minimum element threshold).
 	Compare(other Sdbf) int
 
 	// String returns the digest encoded as a string in the sdbf wire format.
@@ -218,7 +220,7 @@ func ParseSdbfFromString(digest string) (Sdbf, error) {
 		return nil, fmt.Errorf("failed to read version: %w", err)
 	}
 	if version > sdbfVersion {
-		return nil, errors.New("unsupported sdbf version")
+		return nil, fmt.Errorf("unsupported sdbf version %d (maximum supported: %d)", version, sdbfVersion)
 	}
 
 	if err = skipField(r); err != nil { // namelen (always "1")

@@ -240,7 +240,7 @@ func (sd *sdbf) generateBlockHash(fileBuffer []byte, blockNum uint64, chunkScore
 
 // generateChunkSdbf computes the sdbf hash for a buffer in stream mode.
 //
-// For files spanning more than one chunk the work is split into two phases:
+// For files spanning more than one chunk, the work is split into two phases:
 //
 //   - Phase 1 (parallel): generateChunkRanks and generateChunkScores are
 //     pure functions with no shared state, so they are dispatched concurrently
