@@ -68,8 +68,12 @@ func CreateSdbfFromBytes(buffer []byte) (SdbfFactory, error) {
 	if len(buffer) < MinFileSize {
 		return nil, fmt.Errorf("buffer length must be at least %d bytes", MinFileSize)
 	}
+	// Copy the caller's buffer so the factory is truly independent of
+	// external mutations. The cost is negligible relative to Compute.
+	buf := make([]byte, len(buffer))
+	copy(buf, buffer)
 	return &sdbfFactory{
-		buffer: buffer,
+		buffer: buf,
 	}, nil
 }
 

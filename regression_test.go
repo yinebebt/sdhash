@@ -43,6 +43,10 @@ import (
 // Issue 11 — BfSize exported as mutable var but hardwired to 256 throughout
 //    https://github.com/malwarology/sdhash/issues/11
 // └── 00160000  Parse unsupported bfSize
+//
+// Issue 14 — CreateSdbfFromBytes retains caller's slice without copying
+//    https://github.com/malwarology/sdhash/issues/14
+// └── 00170000  Buffer mutation after factory creation
 
 // =========================================================================
 // Issue 1 — Hash Mismatch Between Reference Implementation and Go Implementation
@@ -425,4 +429,45 @@ func TestIssue11_ParseUnsupportedBfSize(t *testing.T) {
 	_, err := ParseSdbfFromString(digest)
 	checkError(t, err,
 		"ParseSdbfFromString must return an error for a bfSize other than 256 (regression: issue #11)")
+}
+
+// =========================================================================
+// Issue 14 — CreateSdbfFromBytes retains caller's slice without copying
+// https://github.com/malwarology/sdhash/issues/14
+// =========================================================================
+
+// ---------------------------------------------------------------------------
+// 00170000  Buffer mutation after factory creation
+// ---------------------------------------------------------------------------
+
+// TestIssue14_BufferMutationAfterFactory verifies that mutating the original
+// buffer after calling CreateSdbfFromBytes does not affect the digest produced
+// by the factory. Without a defensive copy inside CreateSdbfFromBytes, zeroing
+// the buffer between factory creation and Compute causes both factories to
+// produce identical digests even though one was created from random data.
+func TestIssue14_BufferMutationAfterFactory(t *testing.T) {
+	t.Parallel()
+
+	buf := randomBuf(1<<20, 60, 60)
+
+	factory, err := CreateSdbfFromBytes(buf)
+	mustNoError(t, err)
+
+	sd, err := factory.Compute()
+	mustNoError(t, err)
+	first := sd.String()
+
+	// Zero out the original buffer to simulate a caller reusing or releasing it.
+	clear(buf)
+
+	factory2, err := CreateSdbfFromBytes(buf)
+	mustNoError(t, err)
+
+	sd2, err := factory2.Compute()
+	mustNoError(t, err)
+	second := sd2.String()
+
+	if first == second {
+		t.Errorf("digest computed before buffer mutation equals digest computed after: factory did not copy the buffer (regression: issue #14)")
+	}
 }
