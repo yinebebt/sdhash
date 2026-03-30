@@ -102,7 +102,13 @@ func (sd *sdbf) FeatureDensity() float64 {
 }
 
 func (sd *sdbf) Compare(other Sdbf) int {
-	o := other.(*sdbf)
+	if other == nil {
+		return -1
+	}
+	o, ok := other.(*sdbf)
+	if !ok {
+		return -1
+	}
 	sd.mu.RLock()
 	defer sd.mu.RUnlock()
 	o.mu.RLock()

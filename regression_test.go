@@ -51,6 +51,11 @@ import (
 // Issue 15 — DD parsing fails on digests without trailing newline
 //    https://github.com/malwarology/sdhash/issues/15
 // └── 00180000  DD parse without trailing newline
+//
+// Issue 17 — Compare panics on nil or foreign Sdbf implementation
+//    https://github.com/malwarology/sdhash/issues/17
+// ├── 00190000  Compare with nil Sdbf returns -1
+// └── 00200000  Compare with foreign Sdbf implementation returns -1
 
 // =========================================================================
 // Issue 1 — Hash Mismatch Between Reference Implementation and Go Implementation
@@ -507,4 +512,67 @@ func TestIssue15_DDParseWithoutTrailingNewline(t *testing.T) {
 		"parsed digest String() must equal the original (regression: issue #15)")
 	checkEqual(t, 100, parsed.Compare(parsed),
 		"self-comparison of parsed digest must return 100 (regression: issue #15)")
+}
+
+// =========================================================================
+// Issue 17 — Compare panics on nil or foreign Sdbf implementation
+// https://github.com/malwarology/sdhash/issues/17
+// =========================================================================
+
+// ---------------------------------------------------------------------------
+// 00190000  Compare with nil Sdbf returns -1
+// ---------------------------------------------------------------------------
+
+// TestIssue17_CompareNilSdbf verifies that calling Compare with a nil Sdbf
+// argument returns -1 instead of panicking. Without a nil guard inside
+// Compare, passing nil causes a nil-pointer dereference when the
+// implementation attempts to access the argument's fields.
+func TestIssue17_CompareNilSdbf(t *testing.T) {
+	t.Parallel()
+
+	buf := randomBuf(1<<20, 80, 80)
+	sd := streamDigest(t, buf)
+
+	var score int
+	checkNotPanics(t, func() { score = sd.Compare(nil) },
+		"Compare(nil) must not panic (regression: issue #17)")
+	checkEqual(t, -1, score,
+		"Compare(nil) must return -1 (regression: issue #17)")
+}
+
+// ---------------------------------------------------------------------------
+// 00200000  Compare with foreign Sdbf implementation returns -1
+// ---------------------------------------------------------------------------
+
+// foreignSdbfImpl is a minimal Sdbf implementation used only by
+// TestIssue17_CompareForeignImpl. It satisfies the Sdbf interface but is not
+// the internal *sdbf type, so a type-assertion guard inside Compare must
+// handle it gracefully rather than panicking.
+type foreignSdbfImpl struct{}
+
+func (f *foreignSdbfImpl) Size() uint64            { return 0 }
+func (f *foreignSdbfImpl) InputSize() uint64       { return 0 }
+func (f *foreignSdbfImpl) FilterCount() uint32     { return 0 }
+func (f *foreignSdbfImpl) Compare(Sdbf) int        { return 0 }
+func (f *foreignSdbfImpl) String() string          { return "" }
+func (f *foreignSdbfImpl) FeatureDensity() float64 { return 0 }
+
+// TestIssue17_CompareForeignImpl verifies that calling Compare with a foreign
+// Sdbf implementation — one that satisfies the interface but is not the
+// internal *sdbf type — returns -1 instead of panicking. Without a type-assertion
+// guard inside Compare, a type assertion to *sdbf on the foreign
+// value panics at runtime.
+func TestIssue17_CompareForeignImpl(t *testing.T) {
+	t.Parallel()
+
+	buf := randomBuf(1<<20, 81, 81)
+	sd := streamDigest(t, buf)
+
+	foreign := &foreignSdbfImpl{}
+
+	var score int
+	checkNotPanics(t, func() { score = sd.Compare(foreign) },
+		"Compare with a foreign Sdbf implementation must not panic (regression: issue #17)")
+	checkEqual(t, -1, score,
+		"Compare with a foreign Sdbf implementation must return -1 (regression: issue #17)")
 }
