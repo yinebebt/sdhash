@@ -29,7 +29,8 @@ type Sdbf interface {
 	// Compare returns a similarity score in [0, 100] between this Sdbf and other.
 	// A score of 0 indicates very different data; 100 indicates identical data.
 	// Returns -1 if the comparison cannot be performed (e.g., either digest is
-	// degenerate and all filters fall below the minimum element threshold).
+	// degenerate and all filters fall below the minimum element threshold, or
+	// other was not produced by this package).
 	Compare(other Sdbf) int
 
 	// String returns the digest encoded as a string in the sdbf wire format.
