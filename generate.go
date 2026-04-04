@@ -184,7 +184,7 @@ func (sd *sdbf) generateChunkHash(fileBuffer []byte, chunkPos uint64, chunkScore
 				sha1Hash := u32sha1(fileBuffer[chunkPos+i : chunkPos+i+uint64(sd.popWinSize)])
 
 				// Skip if no new bits were set (repetitive feature).
-				if bfSha1Insert(currBf, sha1Hash) == 0 {
+				if bfInsertSha1(currBf, sha1Hash) == 0 {
 					continue
 				}
 
@@ -225,7 +225,7 @@ func (sd *sdbf) generateBlockHash(fileBuffer []byte, blockNum uint64, chunkScore
 		if uint32(chunkScores[i]) > threshold || (uint32(chunkScores[i]) == threshold && allowed > 0) {
 			sha1Hash := u32sha1(fileBuffer[i : i+sd.popWinSize])
 			bf := sd.buffer[blockNum*uint64(sd.bfSize) : (blockNum+1)*uint64(sd.bfSize)]
-			if bfSha1Insert(bf, sha1Hash) == 0 { // skip repetitive features
+			if bfInsertSha1(bf, sha1Hash) == 0 { // skip repetitive features
 				continue
 			}
 			hashCnt++

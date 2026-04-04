@@ -59,8 +59,8 @@ func (bf *bloomFilter) insertSha1(sha1 []uint32) bool {
 	return bitCount < bf.hashCount
 }
 
-// bfSha1Insert inserts a SHA1 hash into a raw bloom filter buffer and returns the number of newly set bits.
-func bfSha1Insert(bf []byte, sha1Hash [5]uint32) uint32 {
+// bfInsertSha1 inserts a SHA1 hash into a raw bloom filter buffer and returns the number of newly set bits.
+func bfInsertSha1(bf []byte, sha1Hash [5]uint32) uint32 {
 	var insertCnt uint32
 	for i := range sha1Hash {
 		insert := sha1Hash[i] & defaultMask
