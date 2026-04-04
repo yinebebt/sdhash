@@ -12,8 +12,8 @@ func init() {
 	}
 }
 
-// entropy64InitInt performs a full entropy computation for a 64-byte buffer.
-func entropy64InitInt(buffer []byte, ascii []byte) uint64 {
+// entropy64Compute performs a full entropy computation for a 64-byte buffer.
+func entropy64Compute(buffer []byte, ascii []byte) uint64 {
 	clear(ascii)
 	for i := 0; i < 64; i++ {
 		ascii[buffer[i]]++
@@ -27,8 +27,8 @@ func entropy64InitInt(buffer []byte, ascii []byte) uint64 {
 	return entropy
 }
 
-// entropy64IncInt performs an incremental (rolling) entropy update for a 64-byte window.
-func entropy64IncInt(prevEntropy uint64, buffer []byte, ascii []byte) uint64 {
+// entropy64Update performs an incremental (rolling) entropy update for a 64-byte window.
+func entropy64Update(prevEntropy uint64, buffer []byte, ascii []byte) uint64 {
 	if buffer[0] == buffer[64] {
 		return prevEntropy
 	}

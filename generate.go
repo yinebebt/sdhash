@@ -78,9 +78,9 @@ func (sd *sdbf) generateChunkRanks(fileBuffer []byte, chunkRanks []uint16) {
 	limit := len(fileBuffer) - sd.entropyWinSize
 	for offset := 0; offset < limit; offset++ {
 		if offset%sd.blockSize == 0 { // full entropy recalculation at block boundaries
-			entropy = entropy64InitInt(fileBuffer[offset:], ascii)
+			entropy = entropy64Compute(fileBuffer[offset:], ascii)
 		} else { // incremental rolling update
-			entropy = entropy64IncInt(entropy, fileBuffer[offset-1:], ascii)
+			entropy = entropy64Update(entropy, fileBuffer[offset-1:], ascii)
 		}
 		chunkRanks[offset] = uint16(entropy64Ranks[entropy>>entropyPower])
 	}

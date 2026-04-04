@@ -30,8 +30,8 @@ import (
 // └── 00140000  mustNewBloomFilter panic
 //
 // III. entropy.go
-// ├── 00150000  entropy64IncInt clamp to zero
-// └── 00160000  entropy64IncInt clamp to entropyScale
+// ├── 00150000  entropy64Update clamp to zero
+// └── 00160000  entropy64Update clamp to entropyScale
 //
 // IV. generate.go + score.go
 // ├── 00170000  sdbfScore zero bfCount
@@ -342,7 +342,7 @@ func TestMustNewBloomFilter_PanicsOnInvalidSize(t *testing.T) {
 // =========================================================================
 
 // ---------------------------------------------------------------------------
-// 00150000  entropy64IncInt clamp to zero
+// 00150000  entropy64Update clamp to zero
 // ---------------------------------------------------------------------------
 
 // TestEntropy64IncInt_ClampToZero exercises the path where the incremental
@@ -363,13 +363,13 @@ func TestEntropy64IncInt_ClampToZero(t *testing.T) {
 	buf[0] = 'A'
 	buf[64] = 'B'
 
-	result := entropy64IncInt(0, buf, ascii)
+	result := entropy64Update(0, buf, ascii)
 	checkEqual(t, uint64(0), result,
 		"entropy calculation going negative must be clamped to 0")
 }
 
 // ---------------------------------------------------------------------------
-// 00160000  entropy64IncInt clamp to entropyScale
+// 00160000  entropy64Update clamp to entropyScale
 // ---------------------------------------------------------------------------
 
 // TestEntropy64IncInt_ClampToEntropyScale exercises the path where the
@@ -390,7 +390,7 @@ func TestEntropy64IncInt_ClampToEntropyScale(t *testing.T) {
 	buf[0] = 'A'
 	buf[64] = 'B'
 
-	result := entropy64IncInt(uint64(entropyScale), buf, ascii)
+	result := entropy64Update(uint64(entropyScale), buf, ascii)
 	checkEqual(t, uint64(entropyScale), result,
 		"entropy calculation exceeding entropyScale must be clamped to entropyScale")
 }
