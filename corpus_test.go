@@ -107,23 +107,24 @@ type corpusResult struct {
 	err      error
 }
 
-// =========================================================================
-// I. Reference corpus — stream mode
-// =========================================================================
+// runCorpusValidation contains the shared three-phase validation loop used by
+// both stream and DD corpus tests. Each call gets its own seedRng derived from
+// corpusMasterSeed, so the two test functions remain independent.
+//
+//   - mode      — log/error prefix string ("stream" or "dd")
+//   - csvPrefix — CSV filename prefix ("corpus_stream" or "corpus_dd")
+//   - computeFn — takes a factory and returns the computed digest
+func runCorpusValidation(t *testing.T, mode string, csvPrefix string, computeFn func(SdbfFactory) (Sdbf, error)) {
+	t.Helper()
 
-// ---------------------------------------------------------------------------
-// 00010000  Full corpus stream digest validation
-// ---------------------------------------------------------------------------
-
-func TestCorpus_StreamMode(t *testing.T) {
 	seedRng := rand.New(rand.NewPCG(uint64(corpusMasterSeed), 0))
 
 	totalChecked := 0
 	totalMismatches := 0
 
 	for _, cat := range corpusCategories() {
-		ref := loadCategoryRef(t, fmt.Sprintf("testdata/corpus_stream_%s.csv", cat.name))
-		t.Logf("stream: %s: loaded %d reference entries", cat.name, len(ref))
+		ref := loadCategoryRef(t, fmt.Sprintf("testdata/%s_%s.csv", csvPrefix, cat.name))
+		t.Logf("%s: %s: loaded %d reference entries", mode, cat.name, len(ref))
 
 		lo, hi := corpusMinSize, corpusMaxSize
 		if cat.customMinSize > 0 {
@@ -190,7 +191,7 @@ func TestCorpus_StreamMode(t *testing.T) {
 					results[idx] = res
 					return
 				}
-				sd, err := factory.Compute()
+				sd, err := computeFn(factory)
 				if err != nil {
 					res.err = fmt.Errorf("compute error: %w", err)
 					results[idx] = res
@@ -210,18 +211,18 @@ func TestCorpus_StreamMode(t *testing.T) {
 		// ------------------------------------------------------------------
 		for _, res := range results {
 			if res.err != nil {
-				t.Errorf("stream: %s: %v", res.filename, res.err)
+				t.Errorf("%s: %s: %v", mode, res.filename, res.err)
 				continue
 			}
 
 			totalChecked++
 			if totalChecked%10000 == 0 {
-				t.Logf("stream: checked %d files so far...", totalChecked)
+				t.Logf("%s: checked %d files so far...", mode, totalChecked)
 			}
 
 			want, ok := ref[res.filename]
 			if !ok {
-				t.Errorf("stream: %s: not found in reference CSV", res.filename)
+				t.Errorf("%s: %s: not found in reference CSV", mode, res.filename)
 				totalMismatches++
 				continue
 			}
@@ -235,14 +236,28 @@ func TestCorpus_StreamMode(t *testing.T) {
 				if len(gotPrefix) > 80 {
 					gotPrefix = gotPrefix[:80]
 				}
-				t.Errorf("stream: %s: digest mismatch\n  want: %s\n  got:  %s\n  size=%d density=%g",
-					res.filename, wantPrefix, gotPrefix, res.dataLen, res.density)
+				t.Errorf("%s: %s: digest mismatch\n  want: %s\n  got:  %s\n  size=%d density=%g",
+					mode, res.filename, wantPrefix, gotPrefix, res.dataLen, res.density)
 				totalMismatches++
 			}
 		}
 	}
 
-	t.Logf("stream: checked %d files, %d mismatches", totalChecked, totalMismatches)
+	t.Logf("%s: checked %d files, %d mismatches", mode, totalChecked, totalMismatches)
+}
+
+// =========================================================================
+// I. Reference corpus — stream mode
+// =========================================================================
+
+// ---------------------------------------------------------------------------
+// 00010000  Full corpus stream digest validation
+// ---------------------------------------------------------------------------
+
+func TestCorpus_StreamMode(t *testing.T) {
+	runCorpusValidation(t, "stream", "corpus_stream", func(f SdbfFactory) (Sdbf, error) {
+		return f.Compute()
+	})
 }
 
 // =========================================================================
@@ -254,131 +269,7 @@ func TestCorpus_StreamMode(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestCorpus_DDMode(t *testing.T) {
-	seedRng := rand.New(rand.NewPCG(uint64(corpusMasterSeed), 0))
-
-	totalChecked := 0
-	totalMismatches := 0
-
-	for _, cat := range corpusCategories() {
-		ref := loadCategoryRef(t, fmt.Sprintf("testdata/corpus_dd_%s.csv", cat.name))
-		t.Logf("dd: %s: loaded %d reference entries", cat.name, len(ref))
-
-		lo, hi := corpusMinSize, corpusMaxSize
-		if cat.customMinSize > 0 {
-			lo = cat.customMinSize
-		}
-		if cat.customMaxSize > 0 {
-			hi = cat.customMaxSize
-		}
-		n := corpusFilesPerType
-		if cat.count > 0 {
-			n = cat.count
-		}
-
-		sizes := generateSizes(seedRng, n, lo, hi)
-
-		// ------------------------------------------------------------------
-		// Phase 1 — Sequential: consume seedRng and generate data.
-		// No hash computation here; we only collect work items.
-		// ------------------------------------------------------------------
-		workItems := make([]corpusWorkItem, 0, len(sizes))
-		for i, size := range sizes {
-			fileSeed := int64(seedRng.Uint64())
-			filename := fmt.Sprintf("%s/%s_%06d_%d.bin", cat.name, cat.name, i, size)
-
-			rng := rand.New(rand.NewPCG(uint64(fileSeed), 0))
-			data := cat.gen(rng, size)
-
-			if len(data) < MinFileSize {
-				continue
-			}
-
-			workItems = append(workItems, corpusWorkItem{
-				filename: filename,
-				data:     data,
-				catName:  cat.name,
-			})
-		}
-
-		// ------------------------------------------------------------------
-		// Phase 2 — Parallel: compute hashes with a bounded worker pool.
-		// Each goroutine writes to its own index in results; no mutex needed.
-		// ------------------------------------------------------------------
-		results := make([]corpusResult, len(workItems))
-
-		sem := make(chan struct{}, runtime.NumCPU())
-		var wg sync.WaitGroup
-
-		for idx, item := range workItems {
-			wg.Add(1)
-			sem <- struct{}{} // acquire a slot
-			go func(idx int, item corpusWorkItem) {
-				defer wg.Done()
-				defer func() { <-sem }() // release slot
-
-				res := corpusResult{
-					index:    idx,
-					filename: item.filename,
-					dataLen:  len(item.data),
-				}
-
-				factory, err := CreateSdbfFromBytes(item.data)
-				if err != nil {
-					res.err = fmt.Errorf("CreateSdbfFromBytes error: %w", err)
-					results[idx] = res
-					return
-				}
-				sd, err := factory.WithBlockSize(corpusDDBlockSize).Compute()
-				if err != nil {
-					res.err = fmt.Errorf("compute error: %w", err)
-					results[idx] = res
-					return
-				}
-				res.digest = strings.TrimRight(sd.String(), "\r\n")
-				res.density = sd.FeatureDensity()
-				results[idx] = res
-			}(idx, item)
-		}
-
-		wg.Wait()
-
-		// ------------------------------------------------------------------
-		// Phase 3 — Sequential: compare results against the reference CSV.
-		// Iterating in original order preserves deterministic test output.
-		// ------------------------------------------------------------------
-		for _, res := range results {
-			if res.err != nil {
-				t.Errorf("dd: %s: %v", res.filename, res.err)
-				continue
-			}
-
-			totalChecked++
-			if totalChecked%10000 == 0 {
-				t.Logf("dd: checked %d files so far...", totalChecked)
-			}
-
-			want, ok := ref[res.filename]
-			if !ok {
-				t.Errorf("dd: %s: not found in reference CSV", res.filename)
-				totalMismatches++
-				continue
-			}
-
-			if res.digest != want {
-				wantPrefix := want
-				if len(wantPrefix) > 80 {
-					wantPrefix = wantPrefix[:80]
-				}
-				gotPrefix := res.digest
-				if len(gotPrefix) > 80 {
-					gotPrefix = gotPrefix[:80]
-				}
-				t.Errorf("dd: %s: digest mismatch\n  want: %s\n  got:  %s\n  size=%d density=%g",
-					res.filename, wantPrefix, gotPrefix, res.dataLen, res.density)
-				totalMismatches++
-			}
-		}
-	}
-
-	t.Logf("dd: checked %d files, %d mismatches", totalChecked, totalMismatches)
+	runCorpusValidation(t, "dd", "corpus_dd", func(f SdbfFactory) (Sdbf, error) {
+		return f.WithBlockSize(corpusDDBlockSize).Compute()
+	})
 }
