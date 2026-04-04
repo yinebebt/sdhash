@@ -56,6 +56,11 @@ import (
 //    https://github.com/malwarology/sdhash/issues/17
 // ├── 00190000  Compare with nil Sdbf returns -1
 // └── 00200000  Compare with foreign Sdbf implementation returns -1
+//
+// Issue 19 — Unconstrained maxElem enables uint32 overflow in Compare
+//    https://github.com/malwarology/sdhash/issues/19
+// ├── 00210000  Parse maxElem overflow (uint32 wraparound)
+// └── 00220000  Parse maxElem zero
 
 // =========================================================================
 // Issue 1 — Hash Mismatch Between Reference Implementation and Go Implementation
@@ -568,4 +573,54 @@ func TestIssue17_CompareForeignImpl(t *testing.T) {
 		"Compare with a foreign Sdbf implementation must not panic (regression: issue #17)")
 	checkEqual(t, -1, score,
 		"Compare with a foreign Sdbf implementation must return -1 (regression: issue #17)")
+}
+
+// =========================================================================
+// Issue 19 — Unconstrained maxElem enables uint32 overflow in Compare
+// https://github.com/malwarology/sdhash/issues/19
+// =========================================================================
+
+// ---------------------------------------------------------------------------
+// 00210000  Parse maxElem overflow (uint32 wraparound)
+// ---------------------------------------------------------------------------
+
+// TestIssue19_ParseMaxElemOverflow verifies that a stream digest string with
+// maxElem set to 2147483649 (0x80000001) is rejected by ParseSdbfFromString.
+// Without an upper-bound check, the value is silently truncated to uint32,
+// causing arithmetic overflow in the scoring path that produces an
+// out-of-bounds index into cutoffs256 (149 entries) and panics.
+func TestIssue19_ParseMaxElemOverflow(t *testing.T) {
+	t.Parallel()
+
+	// maxElem=2147483649 (0x80000001) overflows uint32 arithmetic in the
+	// scoring path. The buffer is a valid 512-byte payload (bfCount=2,
+	// bfSize=256) so all other validation checks would pass without the fix.
+	payload := base64.StdEncoding.EncodeToString(make([]byte, 2*256))
+	digest := fmt.Sprintf("sdbf:03:1:-:1048576:sha1:256:5:7ff:2147483649:2:0:%s\n", payload)
+
+	_, err := ParseSdbfFromString(digest)
+	checkError(t, err,
+		"ParseSdbfFromString must return an error for a maxElem that overflows uint32 arithmetic (regression: issue #19)")
+}
+
+// ---------------------------------------------------------------------------
+// 00220000  Parse maxElem zero
+// ---------------------------------------------------------------------------
+
+// TestIssue19_ParseMaxElemZero verifies that a stream digest string with
+// maxElem set to 0 is rejected by ParseSdbfFromString. A zero maxElem is
+// semantically meaningless (no elements can be inserted) and would produce
+// a divide-by-zero or scoring anomaly if passed through unchecked.
+func TestIssue19_ParseMaxElemZero(t *testing.T) {
+	t.Parallel()
+
+	// maxElem=0: zero max elements is invalid. The buffer is a valid 256-byte
+	// payload (bfCount=1, bfSize=256) so all other validation checks would
+	// pass without the fix.
+	payload := base64.StdEncoding.EncodeToString(make([]byte, 256))
+	digest := fmt.Sprintf("sdbf:03:1:-:1048576:sha1:256:5:7ff:0:1:0:%s\n", payload)
+
+	_, err := ParseSdbfFromString(digest)
+	checkError(t, err,
+		"ParseSdbfFromString must return an error for a maxElem of zero (regression: issue #19)")
 }

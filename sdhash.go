@@ -270,6 +270,9 @@ func ParseSdbfFromString(digest string) (Sdbf, error) {
 	if bfCount > maxBfAlloc/bfSize {
 		return nil, fmt.Errorf("bloom filter allocation too large: %d filters × %d bytes exceeds %d byte limit", bfCount, bfSize, maxBfAlloc)
 	}
+	if maxElem == 0 || maxElem > MaxElemDd {
+		return nil, fmt.Errorf("maxElem %d is invalid (must be between 1 and %d)", maxElem, MaxElemDd)
+	}
 
 	switch magic {
 	case magicStream:
