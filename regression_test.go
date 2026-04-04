@@ -69,6 +69,10 @@ import (
 // Issue 21 — WithBlockSize accepts values below PopWinSize causing underflow panic
 //    https://github.com/malwarology/sdhash/issues/21
 // └── 00240000  Small block size uint64 underflow
+//
+// Issue 31 — ParseSdbfFromString ddBlockSize silently truncated from uint64 to uint32
+//    https://github.com/malwarology/sdhash/issues/31
+// └── 00250000  DD ddBlockSize uint64 to uint32 truncation
 
 // =========================================================================
 // Issue 1 — Hash Mismatch Between Reference Implementation and Go Implementation
@@ -695,4 +699,33 @@ func TestIssue21_SmallBlockSizeUnderflow(t *testing.T) {
 	}, "WithBlockSize(32).Compute() must not panic (regression: issue #21)")
 	checkError(t, computeErr,
 		"WithBlockSize(32).Compute() must return an error when block size is below PopWinSize (regression: issue #21)")
+}
+
+// =========================================================================
+// Issue 31 — ddBlockSize silently truncated from uint64 to uint32
+// https://github.com/malwarology/sdhash/issues/31
+// =========================================================================
+
+// ---------------------------------------------------------------------------
+// 00250000  DD ddBlockSize uint64 to uint32 truncation
+// ---------------------------------------------------------------------------
+
+// TestIssue31_DdBlockSizeTruncation verifies that a DD digest string with
+// ddBlockSize set to 4294967552 (0x100000100, which truncates to 256 as uint32)
+// is rejected by ParseSdbfFromString. Without a range check, the value is
+// silently narrowed when stored in a uint32 field, causing the parsed digest
+// to carry an incorrect block size that later produces corrupt Compare results
+// or allows crafted input to bypass block-size validation.
+func TestIssue31_DdBlockSizeTruncation(t *testing.T) {
+	t.Parallel()
+
+	// ddBlockSize=4294967552 (0x100000100) truncates to 256 when stored as
+	// uint32. bfCount=1, bfSize=256, maxElem=192, elemCount=0xc0 (192 ≤
+	// maxElem=192): all other validation checks would pass without the fix.
+	payload := base64.StdEncoding.EncodeToString(make([]byte, 256))
+	digest := fmt.Sprintf("sdbf-dd:03:1:-:1048576:sha1:256:5:7ff:192:1:4294967552:c0:%s\n", payload)
+
+	_, err := ParseSdbfFromString(digest)
+	checkError(t, err,
+		"ParseSdbfFromString must return an error for a ddBlockSize that overflows uint32 (regression: issue #31)")
 }

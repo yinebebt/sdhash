@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"math"
 	"math/bits"
 	"strconv"
 	"strings"
@@ -303,6 +304,9 @@ func ParseSdbfFromString(digest string) (Sdbf, error) {
 		ddBlockSize, err := readUint64Field(r)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read block size: %w", err)
+		}
+		if ddBlockSize > math.MaxUint32 {
+			return nil, fmt.Errorf("ddBlockSize %d exceeds maximum uint32 value", ddBlockSize)
 		}
 		sd.elemCounts = make([]uint16, bfCount)
 		sd.buffer = make([]byte, bfCount*bfSize)
