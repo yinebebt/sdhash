@@ -4,26 +4,26 @@ const (
 	// MinFileSize is the minimum input size (in bytes) required to compute a digest.
 	MinFileSize = 512
 
-	// BfSize is the size in bytes of each bloom filter.
-	BfSize = 256
+	// bfSize is the size in bytes of each bloom filter.
+	bfSize = 256
 
-	// PopWinSize is the size of the sliding window used to hash input.
-	PopWinSize = 64
+	// popWinSize is the size of the sliding window used to hash input.
+	popWinSize = 64
 
-	// MaxElem is the maximum number of elements per bloom filter in stream mode.
-	MaxElem = 160
+	// maxElem is the maximum number of elements per bloom filter in stream mode.
+	maxElem = 160
 
-	// MaxElemDd is the maximum number of elements per bloom filter in block mode.
-	MaxElemDd = 192
+	// maxElemDd is the maximum number of elements per bloom filter in block mode.
+	maxElemDd = 192
 
-	// Threshold is the minimum score for a chunk position to be hashed.
-	Threshold = 16
+	// threshold is the minimum score for a chunk position to be hashed.
+	threshold = 16
 
-	// BlockSize is the block size used to generate chunk ranks.
-	BlockSize = 4 * kB
+	// blockSize is the block size used to generate chunk ranks.
+	blockSize = 4 * kB
 
-	// EntropyWinSize is the entropy window size used to generate chunk ranks.
-	EntropyWinSize = 64
+	// entropyWinSize is the entropy window size used to generate chunk ranks.
+	entropyWinSize = 64
 
 	kB           = 1024
 	mB           = kB * kB

@@ -246,7 +246,7 @@ func ParseSdbfFromString(digest string) (Sdbf, error) {
 		return nil, fmt.Errorf("failed to read hash algorithm: %w", err)
 	}
 
-	bfSize, err := readUint64Field(r)
+	parsedBfSize, err := readUint64Field(r)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read bloom filter size: %w", err)
 	}
@@ -269,17 +269,17 @@ func ParseSdbfFromString(digest string) (Sdbf, error) {
 	}
 
 	const maxBfAlloc = 256 * 1024 * 1024
-	if bfSize == 0 {
+	if parsedBfSize == 0 {
 		return nil, errors.New("bloom filter size must be greater than zero")
 	}
-	if bfSize != BfSize {
-		return nil, fmt.Errorf("unsupported bloom filter size %d (only %d is supported)", bfSize, BfSize)
+	if parsedBfSize != bfSize {
+		return nil, fmt.Errorf("unsupported bloom filter size %d (only %d is supported)", parsedBfSize, bfSize)
 	}
-	if bfCount > maxBfAlloc/bfSize {
-		return nil, fmt.Errorf("bloom filter allocation too large: %d filters × %d bytes exceeds %d byte limit", bfCount, bfSize, maxBfAlloc)
+	if bfCount > maxBfAlloc/parsedBfSize {
+		return nil, fmt.Errorf("bloom filter allocation too large: %d filters × %d bytes exceeds %d byte limit", bfCount, parsedBfSize, maxBfAlloc)
 	}
-	if maxElem == 0 || maxElem > MaxElemDd {
-		return nil, fmt.Errorf("maxElem %d is invalid (must be between 1 and %d)", maxElem, MaxElemDd)
+	if maxElem == 0 || maxElem > maxElemDd {
+		return nil, fmt.Errorf("maxElem %d is invalid (must be between 1 and %d)", maxElem, maxElemDd)
 	}
 
 	switch magic {
@@ -337,7 +337,7 @@ func ParseSdbfFromString(digest string) (Sdbf, error) {
 				encodedStr = encodedBuffer[:len(encodedBuffer)-1]
 			}
 
-			expectedLen := base64.StdEncoding.EncodedLen(int(bfSize))
+			expectedLen := base64.StdEncoding.EncodedLen(bfSize)
 			if len(encodedStr) != expectedLen {
 				return nil, fmt.Errorf("encoded block %d length %d does not match expected %d", i, len(encodedStr), expectedLen)
 			}
@@ -346,7 +346,7 @@ func ParseSdbfFromString(digest string) (Sdbf, error) {
 			if err != nil {
 				return nil, fmt.Errorf("failed to decode data for filter %d: %w", i, err)
 			}
-			if len(decoded) != int(bfSize) {
+			if len(decoded) != bfSize {
 				return nil, fmt.Errorf("decoded block %d length %d does not match bfSize %d", i, len(decoded), bfSize)
 			}
 			copy(sd.buffer[i*bfSize:], decoded)

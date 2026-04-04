@@ -677,7 +677,7 @@ func TestIssue20_ChunkScoresInnerWhileOOB(t *testing.T) {
 	}
 	chunkRanks[189] = 10
 
-	sd := &sdbf{popWinSize: PopWinSize}
+	sd := &sdbf{popWinSize: popWinSize}
 
 	checkNotPanics(t, func() { sd.generateChunkScores(chunkRanks, 192, chunkScores, nil) },
 		"generateChunkScores must not panic near the end of the chunk (regression: issue #20)")

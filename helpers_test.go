@@ -231,14 +231,14 @@ func ddDigest(t *testing.T, buf []byte, blockSize uint32) Sdbf {
 func newTestSdbf(t *testing.T) *sdbf {
 	t.Helper()
 	sd := &sdbf{
-		bfSize:         BfSize,
+		bfSize:         bfSize,
 		bfCount:        1,
 		bigFilters:     make([]*bloomFilter, 0, 1),
-		popWinSize:     PopWinSize,
-		threshold:      Threshold,
-		blockSize:      BlockSize,
-		entropyWinSize: EntropyWinSize,
-		maxElem:        MaxElem,
+		popWinSize:     popWinSize,
+		threshold:      threshold,
+		blockSize:      blockSize,
+		entropyWinSize: entropyWinSize,
+		maxElem:        maxElem,
 	}
 	bf, err := newBloomFilter(bigFilter, defaultHashCount, bigFilterElem)
 	mustNoError(t, err)

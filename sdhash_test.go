@@ -498,7 +498,7 @@ func TestGenerateChunkSdbf_ChunkSizeTooSmall(t *testing.T) {
 	sd := newTestSdbf(t)
 	sd.origFileSize = uint64(MinFileSize)
 
-	err := sd.generateChunkSdbf(buf, uint64(PopWinSize))
+	err := sd.generateChunkSdbf(buf, uint64(popWinSize))
 	checkError(t, err, "chunkSize <= popWinSize must return an error")
 }
 
@@ -613,7 +613,7 @@ func TestGenerateBlockSdbf_GoroutinePanicRecovery(t *testing.T) {
 	buf := randomBuf(1<<20, 101, 101)
 	sd := newTestSdbf(t)
 	sd.ddBlockSize = blockSize
-	sd.maxElem = MaxElemDd
+	sd.maxElem = maxElemDd
 	sd.origFileSize = uint64(len(buf))
 	// sd.buffer and sd.elemCounts intentionally left nil to force a panic
 	// inside generateSingleBlockSdbf when it calls generateBlockHash.

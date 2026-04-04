@@ -13,22 +13,22 @@ func populateSdbf(sd *sdbf, buffer []byte, ddBlockSize uint32) (*sdbf, error) {
 	fileSize := uint64(len(buffer))
 	sd.origFileSize = fileSize
 	if ddBlockSize == 0 { // stream mode
-		sd.maxElem = MaxElem
+		sd.maxElem = maxElem
 		if err := sd.generateChunkSdbf(buffer, 32*mB); err != nil {
 			return nil, err
 		}
 	} else { // block mode
-		if ddBlockSize < PopWinSize {
-			return nil, fmt.Errorf("block size %d is less than minimum %d", ddBlockSize, PopWinSize)
+		if ddBlockSize < popWinSize {
+			return nil, fmt.Errorf("block size %d is less than minimum %d", ddBlockSize, popWinSize)
 		}
-		sd.maxElem = MaxElemDd
+		sd.maxElem = maxElemDd
 		ddBlockCnt := fileSize / uint64(ddBlockSize)
 		if fileSize%uint64(ddBlockSize) >= MinFileSize {
 			ddBlockCnt++
 		}
 		sd.bfCount = uint32(ddBlockCnt)
 		sd.ddBlockSize = ddBlockSize
-		sd.buffer = make([]byte, ddBlockCnt*uint64(BfSize))
+		sd.buffer = make([]byte, ddBlockCnt*uint64(bfSize))
 		sd.elemCounts = make([]uint16, ddBlockCnt)
 		if err := sd.generateBlockSdbf(buffer); err != nil {
 			return nil, err
@@ -41,13 +41,13 @@ func populateSdbf(sd *sdbf, buffer []byte, ddBlockSize uint32) (*sdbf, error) {
 // createSdbf creates and digests a sdbf from a byte buffer.
 func createSdbf(buffer []byte, ddBlockSize uint32) (*sdbf, error) {
 	return populateSdbf(&sdbf{
-		bfSize:         BfSize,
+		bfSize:         bfSize,
 		bfCount:        1,
 		bigFilters:     []*bloomFilter{mustNewBloomFilter(bigFilter, defaultHashCount, bigFilterElem)},
-		popWinSize:     PopWinSize,
-		threshold:      Threshold,
-		blockSize:      BlockSize,
-		entropyWinSize: EntropyWinSize,
+		popWinSize:     popWinSize,
+		threshold:      threshold,
+		blockSize:      blockSize,
+		entropyWinSize: entropyWinSize,
 	}, buffer, ddBlockSize)
 }
 
