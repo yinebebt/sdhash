@@ -127,7 +127,7 @@ func (sd *sdbf) generateChunkScores(chunkRanks []uint16, chunkSize uint64, chunk
 
 	for i := uint64(0); chunkSize > popWin && i < chunkSize-popWin; i++ {
 		if i > 0 && minRank > 0 {
-			for chunkRanks[i+popWin] >= minRank && i < minPos && i < chunkSize-popWin+1 {
+			for i < chunkSize-popWin && i < minPos && chunkRanks[i+popWin] >= minRank {
 				if chunkRanks[i+popWin] == minRank {
 					minPos = i + popWin
 				}

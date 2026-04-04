@@ -61,6 +61,10 @@ import (
 //    https://github.com/malwarology/sdhash/issues/19
 // ├── 00210000  Parse maxElem overflow (uint32 wraparound)
 // └── 00220000  Parse maxElem zero
+//
+// Issue 20 — Inner while loop evaluates array access before bounds guard
+//    https://github.com/malwarology/sdhash/issues/20
+// └── 00230000  generateChunkScores inner while loop OOB
 
 // =========================================================================
 // Issue 1 — Hash Mismatch Between Reference Implementation and Go Implementation
@@ -623,4 +627,37 @@ func TestIssue19_ParseMaxElemZero(t *testing.T) {
 	_, err := ParseSdbfFromString(digest)
 	checkError(t, err,
 		"ParseSdbfFromString must return an error for a maxElem of zero (regression: issue #19)")
+}
+
+// =========================================================================
+// Issue 20 — Inner while loop evaluates array access before bounds guard
+// https://github.com/malwarology/sdhash/issues/20
+// =========================================================================
+
+// ---------------------------------------------------------------------------
+// 00230000  generateChunkScores inner while loop OOB
+// ---------------------------------------------------------------------------
+
+// TestIssue20_ChunkScoresInnerWhileOOB verifies that generateChunkScores
+// completes without an out-of-bounds panic when the inner while loop runs
+// near the end of the chunk. Without the fix, the loop evaluates
+// chunkRanks[i+popWin] before the bounds guard i < chunkSize-popWin,
+// causing a panic when i+popWin reaches the end of the slice. The crafted
+// ranks place the window minimum at index 189 so that the inner while loop
+// is entered and advances i toward the slice boundary.
+func TestIssue20_ChunkScoresInnerWhileOOB(t *testing.T) {
+	t.Parallel()
+
+	chunkRanks := make([]uint16, 192)
+	chunkScores := make([]uint16, 192)
+
+	for i := range chunkRanks {
+		chunkRanks[i] = 50
+	}
+	chunkRanks[189] = 10
+
+	sd := &sdbf{popWinSize: PopWinSize}
+
+	checkNotPanics(t, func() { sd.generateChunkScores(chunkRanks, 192, chunkScores, nil) },
+		"generateChunkScores must not panic near the end of the chunk (regression: issue #20)")
 }
