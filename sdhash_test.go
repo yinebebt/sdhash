@@ -457,7 +457,7 @@ func TestGenerateChunkSdbf_MultiChunk(t *testing.T) {
 	sd := newTestSdbf(t)
 	sd.origFileSize = uint64(totalSize)
 
-	sd.generateChunkSdbf(buf, chunkSize)
+	mustNoError(t, sd.generateChunkSdbf(buf, chunkSize), "generateChunkSdbf must not error on valid input")
 	sd.computeHamming()
 
 	checkGreater(t, sd.bfCount, uint32(0), "multi-chunk digest must have at least one filter")
@@ -500,7 +500,7 @@ func TestGenerateChunkSdbf_ExactlyOneChunk(t *testing.T) {
 	sd := newTestSdbf(t)
 	sd.origFileSize = uint64(size)
 
-	sd.generateChunkSdbf(buf, size)
+	mustNoError(t, sd.generateChunkSdbf(buf, size), "generateChunkSdbf must not error on valid input")
 	sd.computeHamming()
 
 	checkGreater(t, sd.bfCount, uint32(0), "exactly-one-chunk digest must have at least one filter")
@@ -533,7 +533,7 @@ func TestGenerateChunkSdbf_MultiChunk_SparseLastFilter(t *testing.T) {
 	sd := newTestSdbf(t)
 	sd.origFileSize = uint64(len(buf))
 
-	sd.generateChunkSdbf(buf, chunkSize)
+	mustNoError(t, sd.generateChunkSdbf(buf, chunkSize), "generateChunkSdbf must not error on valid input")
 	sd.computeHamming()
 
 	checkEqual(t, uint32(1), sd.bfCount,
