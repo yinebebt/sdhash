@@ -17,13 +17,13 @@ import (
 //    https://github.com/malwarology/sdhash/issues/23
 // └── dec42c3bb0b43d05  Malformed base64 content triggers decodeQuantum OOB
 //
-// FuzzCompute — CreateSdbfFromBytes / Compute: exercises the digest generation
+// FuzzCompute — New / Compute: exercises the digest generation
 // pipeline (stream mode and DD block mode) with arbitrary raw byte inputs.
 // No known findings.
 //
 // Run fuzzer: go test -run='^$' -fuzz=FuzzCompute -fuzztime=30s ./...
 //
-// FuzzRoundTrip — CreateSdbfFromBytes / Compute / String / ParseSdbfFromString:
+// FuzzRoundTrip — New / Compute / String / ParseSdbfFromString:
 // verifies that any digest that can be computed and serialized can be parsed
 // back to an identical string. A failure here indicates a serialization or
 // parse inconsistency.
@@ -90,7 +90,7 @@ func FuzzCompute(f *testing.F) {
 	f.Add(randomBuf(65536, 2, 2))
 
 	f.Fuzz(func(t *testing.T, data []byte) {
-		factory, err := CreateSdbfFromBytes(data)
+		factory, err := New(data)
 		if err != nil {
 			return // too small, expected
 		}
@@ -129,7 +129,7 @@ func FuzzRoundTrip(f *testing.F) {
 	f.Add(randomBuf(131072, 4, 4))
 
 	f.Fuzz(func(t *testing.T, data []byte) {
-		factory, err := CreateSdbfFromBytes(data)
+		factory, err := New(data)
 		if err != nil {
 			return
 		}

@@ -18,7 +18,7 @@
 //
 // # Usage
 //
-//	factory, err := sdhash.CreateSdbfFromBytes(data)
+//	factory, err := sdhash.New(data)
 //	if err != nil {
 //	    log.Fatal(err)
 //	}

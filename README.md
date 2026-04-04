@@ -26,7 +26,7 @@ if err != nil {
     log.Fatal(err)
 }
 
-factory, err := sdhash.CreateSdbfFromBytes(data)
+factory, err := sdhash.New(data)
 if err != nil {
     log.Fatal(err)
 }
@@ -42,7 +42,7 @@ fmt.Println(digest.String())
 ### Computing a DD (block-aligned) digest
 
 ```go
-factory, err := sdhash.CreateSdbfFromBytes(data)
+factory, err := sdhash.New(data)
 if err != nil {
     log.Fatal(err)
 }
@@ -85,7 +85,7 @@ for i, data := range inputs {
     wg.Add(1)
     go func(idx int, buf []byte) {
         defer wg.Done()
-        factory, err := sdhash.CreateSdbfFromBytes(buf)
+        factory, err := sdhash.New(buf)
         if err != nil {
             return
         }
@@ -100,9 +100,9 @@ Empirically, using 3-4x the core count as the worker count is optimal because I/
 ## Public API
 
 ```go
-// CreateSdbfFromBytes returns a factory that will produce a digest from the
+// New returns a factory that will produce a digest from the
 // given byte slice. The slice must be at least MinFileSize (512) bytes.
-func CreateSdbfFromBytes([]byte) (SdbfFactory, error)
+func New([]byte) (SdbfFactory, error)
 
 // SdbfFactory builds a digest. Methods return a new factory rather than
 // modifying the receiver, making the type safe to share across goroutines.
@@ -253,7 +253,7 @@ This three-step pattern — crypto hash for identity, sdhash for similarity, den
 
 Every method on `Sdbf` is safe to call from multiple goroutines simultaneously. `Compare`, `String`, `Size`, `InputSize`, `FilterCount`, and `FeatureDensity` are read-only and may be called concurrently without restriction.
 
-Each `CreateSdbfFromBytes` call followed by `Compute` produces an independent `Sdbf` instance with no shared state. Computing many digests concurrently across different inputs is safe and is the primary pattern the library is designed for.
+Each `New` call followed by `Compute` produces an independent `Sdbf` instance with no shared state. Computing many digests concurrently across different inputs is safe and is the primary pattern the library is designed for.
 
 **`SdbfFactory` is immutable.** `WithBlockSize` returns a new factory rather than modifying the receiver. Sharing a factory across goroutines is safe, though pointless since each `Compute` call produces an independent result.
 

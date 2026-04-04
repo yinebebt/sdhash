@@ -72,9 +72,9 @@ type sdbfFactory struct {
 	ddBlockSize uint32
 }
 
-// CreateSdbfFromBytes returns a factory that will produce a Sdbf from the given byte slice.
+// New returns a factory that will produce a Sdbf from the given byte slice.
 // The slice must be at least MinFileSize bytes.
-func CreateSdbfFromBytes(buffer []byte) (SdbfFactory, error) {
+func New(buffer []byte) (SdbfFactory, error) {
 	if len(buffer) < MinFileSize {
 		return nil, fmt.Errorf("buffer length must be at least %d bytes", MinFileSize)
 	}

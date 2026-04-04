@@ -44,7 +44,7 @@ import (
 //    https://github.com/malwarology/sdhash/issues/11
 // └── 00160000  Parse unsupported bfSize
 //
-// Issue 14 — CreateSdbfFromBytes retains caller's slice without copying
+// Issue 14 — New retains caller's slice without copying
 //    https://github.com/malwarology/sdhash/issues/14
 // └── 00170000  Buffer mutation after factory creation
 //
@@ -87,7 +87,7 @@ func TestIssue1DefaultIndexNotCreated(t *testing.T) {
 	t.Parallel()
 	data := decryptTestFile(t, "testdata/issue1.bin.enc")
 
-	factory, err := CreateSdbfFromBytes(data)
+	factory, err := New(data)
 	mustNoError(t, err)
 
 	sd, err := factory.Compute()
@@ -120,7 +120,7 @@ func TestIssue1StreamHash_MatchesReference(t *testing.T) {
 	expected := string(expectedBytes)
 	expected = strings.TrimRight(expected, "\r\n") + "\n"
 
-	factory, err := CreateSdbfFromBytes(data)
+	factory, err := New(data)
 	mustNoError(t, err)
 
 	sd, err := factory.Compute()
@@ -144,7 +144,7 @@ func TestIssue1DDHash_MatchesReference(t *testing.T) {
 	expected := string(expectedBytes)
 	expected = strings.TrimRight(expected, "\r\n") + "\n"
 
-	factory, err := CreateSdbfFromBytes(data)
+	factory, err := New(data)
 	mustNoError(t, err)
 
 	// The DD reference was produced with a 1 MiB block size,
@@ -297,7 +297,7 @@ func TestIssue3_HighBlockCountDDMode(t *testing.T) {
 
 	data := randomBuf(1<<20, 50, 50)
 
-	factory, err := CreateSdbfFromBytes(data)
+	factory, err := New(data)
 	mustNoError(t, err)
 
 	const ddBlockSize = 1024
@@ -463,7 +463,7 @@ func TestIssue11_ParseUnsupportedBfSize(t *testing.T) {
 }
 
 // =========================================================================
-// Issue 14 — CreateSdbfFromBytes retains caller's slice without copying
+// Issue 14 — New retains caller's slice without copying
 // https://github.com/malwarology/sdhash/issues/14
 // =========================================================================
 
@@ -472,8 +472,8 @@ func TestIssue11_ParseUnsupportedBfSize(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 // TestIssue14_BufferMutationAfterFactory verifies that mutating the original
-// buffer after calling CreateSdbfFromBytes does not affect the digest produced
-// by the factory. Without a defensive copy inside CreateSdbfFromBytes, zeroing
+// buffer after calling New does not affect the digest produced
+// by the factory. Without a defensive copy inside New, zeroing
 // the buffer between factory creation and Compute causes both factories to
 // produce identical digests even though one was created from random data.
 func TestIssue14_BufferMutationAfterFactory(t *testing.T) {
@@ -481,7 +481,7 @@ func TestIssue14_BufferMutationAfterFactory(t *testing.T) {
 
 	buf := randomBuf(1<<20, 60, 60)
 
-	factory, err := CreateSdbfFromBytes(buf)
+	factory, err := New(buf)
 	mustNoError(t, err)
 
 	sd, err := factory.Compute()
@@ -491,7 +491,7 @@ func TestIssue14_BufferMutationAfterFactory(t *testing.T) {
 	// Zero out the original buffer to simulate a caller reusing or releasing it.
 	clear(buf)
 
-	factory2, err := CreateSdbfFromBytes(buf)
+	factory2, err := New(buf)
 	mustNoError(t, err)
 
 	sd2, err := factory2.Compute()
@@ -703,7 +703,7 @@ func TestIssue21_SmallBlockSizeUnderflow(t *testing.T) {
 
 	buf := randomBuf(1<<20, 90, 90)
 
-	factory, err := CreateSdbfFromBytes(buf)
+	factory, err := New(buf)
 	mustNoError(t, err)
 
 	var computeErr error

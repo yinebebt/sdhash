@@ -185,9 +185,10 @@ func runCorpusValidation(t *testing.T, mode string, csvPrefix string, computeFn 
 					dataLen:  len(item.data),
 				}
 
-				factory, err := CreateSdbfFromBytes(item.data)
+				factory, err := New(item.data)
 				if err != nil {
-					res.err = fmt.Errorf("CreateSdbfFromBytes error: %w", err)
+					//goland:noinspection GoErrorStringFormat
+					res.err = fmt.Errorf("New error: %w", err)
 					results[idx] = res
 					return
 				}

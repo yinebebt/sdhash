@@ -12,7 +12,7 @@ import (
 // Test index
 //
 // I. General
-// ├── 00010000  Error cases for CreateSdbfFromBytes
+// ├── 00010000  Error cases for New
 // ├── 00020000  Stream mode basic properties
 // ├── 00030000  Stream mode self-comparison
 // ├── 00040000  DD mode basic properties
@@ -61,26 +61,26 @@ import (
 // =========================================================================
 
 // ---------------------------------------------------------------------------
-// 00010000  Error cases for CreateSdbfFromBytes
+// 00010000  Error cases for New
 // ---------------------------------------------------------------------------
 
-func TestCreateSdbfFromBytes_EmptyBuffer(t *testing.T) {
+func TestNew_EmptyBuffer(t *testing.T) {
 	t.Parallel()
-	_, err := CreateSdbfFromBytes([]byte{})
+	_, err := New([]byte{})
 	checkError(t, err, "empty buffer must return an error")
 }
 
-func TestCreateSdbfFromBytes_TooSmall(t *testing.T) {
+func TestNew_TooSmall(t *testing.T) {
 	t.Parallel()
 	buf := make([]byte, MinFileSize-1)
-	_, err := CreateSdbfFromBytes(buf)
+	_, err := New(buf)
 	checkError(t, err, "buffer smaller than MinFileSize must return an error")
 }
 
-func TestCreateSdbfFromBytes_ExactlyMinFileSize(t *testing.T) {
+func TestNew_ExactlyMinFileSize(t *testing.T) {
 	t.Parallel()
 	buf := make([]byte, MinFileSize)
-	_, err := CreateSdbfFromBytes(buf)
+	_, err := New(buf)
 	checkNoError(t, err, "buffer of exactly MinFileSize must succeed")
 }
 
@@ -255,7 +255,7 @@ func TestConcurrent_ComputeMultiple(t *testing.T) {
 		go func(idx int) {
 			defer wg.Done()
 			buf := randomBuf(1<<20, uint64(idx+10), uint64(idx+20))
-			factory, err := CreateSdbfFromBytes(buf)
+			factory, err := New(buf)
 			if err != nil {
 				errs[idx] = err
 				return
