@@ -22,6 +22,14 @@ import (
 // No known findings.
 //
 // Run fuzzer: go test -run='^$' -fuzz=FuzzCompute -fuzztime=30s ./...
+//
+// FuzzRoundTrip — CreateSdbfFromBytes / Compute / String / ParseSdbfFromString:
+// verifies that any digest that can be computed and serialized can be parsed
+// back to an identical string. A failure here indicates a serialization or
+// parse inconsistency.
+// No known findings.
+//
+// Run fuzzer: go test -run='^$' -fuzz=FuzzRoundTrip -fuzztime=30s ./...
 
 func FuzzParseSdbfFromString(f *testing.F) {
 	// 1. Valid stream digest
@@ -107,5 +115,38 @@ func FuzzCompute(f *testing.F) {
 		_ = dd.String()
 		_ = dd.FeatureDensity()
 		_ = dd.Compare(dd)
+	})
+}
+
+func FuzzRoundTrip(f *testing.F) {
+	// 1. 512 bytes of zeros — minimum file size
+	f.Add(make([]byte, 512))
+
+	// 2. 4096 bytes of pseudo-random data — small file
+	f.Add(randomBuf(4096, 3, 3))
+
+	// 3. 131072 bytes of pseudo-random data — medium file
+	f.Add(randomBuf(131072, 4, 4))
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		factory, err := CreateSdbfFromBytes(data)
+		if err != nil {
+			return
+		}
+		sd, err := factory.Compute()
+		if err != nil {
+			return
+		}
+
+		original := sd.String()
+
+		parsed, err := ParseSdbfFromString(original)
+		if err != nil {
+			t.Fatalf("round-trip parse failed: %v", err)
+		}
+
+		if parsed.String() != original {
+			t.Fatalf("round-trip mismatch:\n  original: %s\n  parsed:   %s", original, parsed.String())
+		}
 	})
 }
