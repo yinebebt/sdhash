@@ -573,12 +573,12 @@ func TestIssue17_CompareNilSdbf(t *testing.T) {
 // handle it gracefully rather than panicking.
 type foreignSdbfImpl struct{}
 
-func (f *foreignSdbfImpl) Size() uint64            { return 0 }
-func (f *foreignSdbfImpl) InputSize() uint64       { return 0 }
-func (f *foreignSdbfImpl) FilterCount() uint32     { return 0 }
+func (f *foreignSdbfImpl) Size() uint64             { return 0 }
+func (f *foreignSdbfImpl) InputSize() uint64        { return 0 }
+func (f *foreignSdbfImpl) FilterCount() uint32      { return 0 }
 func (f *foreignSdbfImpl) Compare(Sdbf) (int, bool) { return 0, false }
-func (f *foreignSdbfImpl) String() string          { return "" }
-func (f *foreignSdbfImpl) FeatureDensity() float64 { return 0 }
+func (f *foreignSdbfImpl) String() string           { return "" }
+func (f *foreignSdbfImpl) FeatureDensity() float64  { return 0 }
 
 // TestIssue17_CompareForeignImpl verifies that calling Compare with a foreign
 // Sdbf implementation — one that satisfies the interface but is not the
