@@ -73,6 +73,10 @@ import (
 // Issue 31 — ParseSdbfFromString ddBlockSize silently truncated from uint64 to uint32
 //    https://github.com/malwarology/sdhash/issues/31
 // └── 00250000  DD ddBlockSize uint64 to uint32 truncation
+//
+// Issue 47 — Compare swap condition missing tiebreaker when bfCount is equal
+//    https://github.com/malwarology/sdhash/issues/47
+// └── 00260000  Swap tiebreaker with equal bfCount
 
 // =========================================================================
 // Issue 1 — Hash Mismatch Between Reference Implementation and Go Implementation
@@ -741,4 +745,34 @@ func TestIssue31_DdBlockSizeTruncation(t *testing.T) {
 	_, err := ParseSdbfFromString(digest)
 	checkError(t, err,
 		"ParseSdbfFromString must return an error for a ddBlockSize that overflows uint32 (regression: issue #31)")
+}
+
+// =========================================================================
+// Issue 47 — Compare swap condition missing tiebreaker when bfCount is equal
+// https://github.com/malwarology/sdhash/issues/47
+// =========================================================================
+
+// ---------------------------------------------------------------------------
+// 00260000  Swap tiebreaker with equal bfCount
+// ---------------------------------------------------------------------------
+
+// TestIssue47_SwapTiebreaker verifies that two digests with equal bfCount
+// but different last-filter element counts produce the correct score. Without
+// the elemCount tiebreaker in the swap condition, sdbfScore iterates over
+// the wrong digest, producing a score of 5 instead of 100.
+func TestIssue47_SwapTiebreaker(t *testing.T) {
+	t.Parallel()
+
+	dataA := decryptTestFile(t, "testdata/issue47a.bin.enc")
+	dataB := decryptTestFile(t, "testdata/issue47b.bin.enc")
+
+	sdA := streamDigest(t, dataA)
+	sdB := streamDigest(t, dataB)
+
+	const wantScore = 100 // C++ reference output for this pair
+	gotScore, ok := sdA.Compare(sdB)
+	checkTrue(t, ok,
+		"Compare must be meaningful (regression: issue #47)")
+	checkEqual(t, wantScore, gotScore,
+		"Compare score must match C++ reference (regression: issue #47)")
 }

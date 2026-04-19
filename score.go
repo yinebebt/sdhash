@@ -10,7 +10,15 @@ func sdbfScore(sdbf1 *sdbf, sdbf2 *sdbf) int {
 	// Always iterate over the smaller digest. This minimizes the number of
 	// sdbfMaxScore calls while still finding the best match for every filter
 	// in the smaller digest against the full larger digest.
-	if bfCount1 > sdbf2.bfCount {
+	// When bfCount is equal, break the tie by comparing the element count of
+	// the last bloom filter; the digest with the larger last-filter element
+	// count becomes the target. The bfCount1 > 0 guard prevents an underflow
+	// on the elemCount(bfCount1-1) call when both digests have zero filters.
+	// (The C++ reference has a third tiebreaker on strcmp(hashname) which is
+	// omitted here because Go digests do not carry names.)
+	if bfCount1 > sdbf2.bfCount ||
+		(bfCount1 == sdbf2.bfCount && bfCount1 > 0 &&
+			sdbf1.elemCount(bfCount1-1) > sdbf2.elemCount(sdbf2.bfCount-1)) {
 		sdbf1, sdbf2 = sdbf2, sdbf1
 		bfCount1 = sdbf1.bfCount
 	}
