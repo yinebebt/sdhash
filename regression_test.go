@@ -74,9 +74,14 @@ import (
 //    https://github.com/malwarology/sdhash/issues/31
 // └── 00250000  DD ddBlockSize uint64 to uint32 truncation
 //
+// Issue 43 — sdbfScore mixes -1 sentinel returns from sdbfMaxScore into the score sum, corrupting results
+//    https://github.com/malwarology/sdhash/issues/43
+// ├── 00260000  Stream mode degenerate pair returns score 0 and ok false
+// └── 00270000  DD mode degenerate pair returns score 0 and ok false
+//
 // Issue 47 — Compare swap condition missing tiebreaker when bfCount is equal
 //    https://github.com/malwarology/sdhash/issues/47
-// └── 00260000  Swap tiebreaker with equal bfCount
+// └── 00280000  Swap tiebreaker with equal bfCount
 
 // =========================================================================
 // Issue 1 — Hash Mismatch Between Reference Implementation and Go Implementation
@@ -748,12 +753,82 @@ func TestIssue31_DdBlockSizeTruncation(t *testing.T) {
 }
 
 // =========================================================================
+// Issue 43 — sdbfScore mixes -1 sentinel returns from sdbfMaxScore into the score sum, corrupting results
+// https://github.com/malwarology/sdhash/issues/43
+// =========================================================================
+
+// ---------------------------------------------------------------------------
+// 00260000  Stream mode degenerate pair returns score 0 and ok false
+// ---------------------------------------------------------------------------
+
+// TestIssue43_StreamDegeneratePairScore verifies that comparing two stream
+// digests where some filters have no scoreable target returns a clean
+// (score, true) result. Pre-fix, the -1 sentinels returned by sdbfMaxScore
+// for no-scoreable-target filters were summed directly into scoreSum,
+// pushing it negative and causing Compare to incorrectly report the pair as
+// incomparable (0, false). Post-fix, the -1 returns are excluded from both
+// the sum and the denominator, the remaining valid filter comparisons are
+// averaged correctly, and this pair's low real similarity is reported as
+// (0, true). The regression signature is the ok flag: any reintroduction of
+// the -1-accumulation bug will flip it back to false on this pair.
+func TestIssue43_StreamDegeneratePairScore(t *testing.T) {
+	t.Parallel()
+
+	dataA := decryptTestFile(t, "testdata/issue43a.bin.enc")
+	dataB := decryptTestFile(t, "testdata/issue43b.bin.enc")
+
+	sdA := streamDigest(t, dataA)
+	sdB := streamDigest(t, dataB)
+
+	var score int
+	var ok bool
+	checkNotPanics(t, func() { score, ok = sdA.Compare(sdB) },
+		"Compare must not panic on this pair (regression: issue #43)")
+	checkTrue(t, ok,
+		"Compare must return ok=true; pre-fix bug flipped it to false (regression: issue #43)")
+	checkEqual(t, 0, score,
+		"Compare must return score=0 for this pair (regression: issue #43)")
+}
+
+// ---------------------------------------------------------------------------
+// 00270000  DD mode degenerate pair returns score 0 and ok false
+// ---------------------------------------------------------------------------
+
+// TestIssue43_DDDegeneratePairScore verifies the same sentinel-exclusion fix
+// in DD (block-aligned) mode. Pre-fix, summing -1 sentinels into scoreSum
+// flipped this pair to (0, false), falsely reporting it as incomparable.
+// Post-fix, the -1 returns are properly excluded from both the sum and the
+// denominator, and the pair's low real similarity is reported as (0, true).
+// The regression signature is the ok flag: any reintroduction of the
+// -1-accumulation bug will flip it back to false on this pair.
+func TestIssue43_DDDegeneratePairScore(t *testing.T) {
+	t.Parallel()
+
+	const ddBlockSize = 1048576
+
+	dataA := decryptTestFile(t, "testdata/issue43a.bin.enc")
+	dataB := decryptTestFile(t, "testdata/issue43b.bin.enc")
+
+	sdA := ddDigest(t, dataA, ddBlockSize)
+	sdB := ddDigest(t, dataB, ddBlockSize)
+
+	var score int
+	var ok bool
+	checkNotPanics(t, func() { score, ok = sdA.Compare(sdB) },
+		"Compare must not panic on this pair (regression: issue #43)")
+	checkTrue(t, ok,
+		"Compare must return ok=true; pre-fix bug flipped it to false (regression: issue #43)")
+	checkEqual(t, 0, score,
+		"Compare must return score=0 for this pair (regression: issue #43)")
+}
+
+// =========================================================================
 // Issue 47 — Compare swap condition missing tiebreaker when bfCount is equal
 // https://github.com/malwarology/sdhash/issues/47
 // =========================================================================
 
 // ---------------------------------------------------------------------------
-// 00260000  Swap tiebreaker with equal bfCount
+// 00280000  Swap tiebreaker with equal bfCount
 // ---------------------------------------------------------------------------
 
 // TestIssue47_SwapTiebreaker verifies that two digests with equal bfCount

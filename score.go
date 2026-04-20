@@ -4,6 +4,8 @@ import "math"
 
 // sdbfScore calculates the similarity score (0–100) between two sdbf digests.
 // Both digests must have their hamming weights pre-computed (guaranteed after construction).
+// Returns -1 if the comparison cannot be performed (no filters, or no filter pair
+// produced a valid comparison).
 func sdbfScore(sdbf1 *sdbf, sdbf2 *sdbf) int {
 	bfCount1 := sdbf1.bfCount
 
@@ -28,23 +30,30 @@ func sdbfScore(sdbf1 *sdbf, sdbf2 *sdbf) int {
 	}
 
 	var scoreSum float64
-	var sparseCount uint32
+	var sparseCount uint32   // source filter too sparse; sdbfMaxScore returned 0
+	var noTargetCount uint32 // no scoreable target filter; sdbfMaxScore returned -1
 	for i := uint32(0); i < bfCount1; i++ {
-		scoreSum += sdbfMaxScore(sdbf1, i, sdbf2)
+		s := sdbfMaxScore(sdbf1, i, sdbf2)
+		if s < 0 {
+			// No target filter had enough elements to compare against.
+			// Exclude this filter from both the sum and the denominator.
+			noTargetCount++
+			continue
+		}
+		scoreSum += s
 		if sdbf1.elemCount(i) < minElemCount {
 			sparseCount++
 		}
 	}
 
-	denominator := bfCount1
+	// Filters that produced no valid comparison are excluded unconditionally.
+	// Sparse source filters are excluded only when there is more than one filter,
+	// preserving the original behavior for single-filter digests.
+	denominator := bfCount1 - noTargetCount
 	if bfCount1 > 1 {
 		denominator -= sparseCount
 	}
 	if denominator == 0 {
-		scoreSum--
-	}
-
-	if scoreSum < 0 {
 		return -1
 	}
 
