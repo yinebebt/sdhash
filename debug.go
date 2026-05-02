@@ -1,0 +1,84 @@
+// This file provides package-level accessors into the private state of
+// the sdbf type for use by the reference-correctness test harness.
+// These accessors are transient: they exist to support the
+// cross-implementation testing methodology during the port and will be
+// removed when that methodology absorbs into the library's formal unit
+// tests.
+//
+// None of the functions in this file are part of the library's public
+// API. Do not depend on them from outside the test methodology.
+
+package sdhash
+
+// DebugRemoveRounding, when true, causes CompareDebug to truncate its
+// final score instead of rounding. Rounding is the correct behavior
+// (matching both the modern Compare path and the C++ reference);
+// removing it exposes the systemic downward bias that truncation
+// produces. Used for demonstrations.
+//
+// Default: false.
+var DebugRemoveRounding bool
+
+// DebugRevertAdditiveAccumulation, when true, causes CompareDebug to
+// use the C++-faithful conditional-first-assignment accumulation
+// pattern instead of the modern additive accumulation from zero.
+// Additive accumulation is the correct algorithm; the C++ pattern
+// was a defect. Used for demonstrations.
+//
+// Default: false.
+var DebugRevertAdditiveAccumulation bool
+
+// DebugRevertExactPopcount, when true, causes CompareDebug to use
+// the C++-faithful staged early-exit popcount heuristic
+// (andPopcountCut screening before exact andPopcount) instead of
+// the modern exact popcount directly. Exact popcount is the correct
+// algorithm; the C++ heuristic traded correctness for performance.
+// Used for demonstrations.
+//
+// Default: false.
+var DebugRevertExactPopcount bool
+
+// MaxElem returns the per-filter element saturation cap configured for
+// this digest. This is 160 for stream-mode digests and 192 for DD-mode
+// digests.
+func MaxElem(s Sdbf) uint32 {
+	return s.(*sdbf).maxElem
+}
+
+// DDBlockSize returns the DD-mode block size in bytes, or 0 for
+// stream-mode digests.
+func DDBlockSize(s Sdbf) uint32 {
+	return s.(*sdbf).ddBlockSize
+}
+
+// LastCount returns the element count of the final bloom filter. In
+// stream mode this is the tail filter's count; in DD mode it is
+// always 0.
+func LastCount(s Sdbf) uint32 {
+	return s.(*sdbf).lastCount
+}
+
+// ElemCount returns the element count of the bloom filter at the given
+// index. Callers must ensure 0 <= index < FilterCount(s).
+func ElemCount(s Sdbf, index uint32) uint32 {
+	return s.(*sdbf).elemCount(index)
+}
+
+// Hamming returns the Hamming weight (number of set bits) of the bloom
+// filter at the given index. Callers must ensure
+// 0 <= index < FilterCount(s).
+func Hamming(s Sdbf, index uint32) uint16 {
+	return s.(*sdbf).hamming[index]
+}
+
+// TotalElements returns the sum of element counts across all bloom
+// filters in the digest. This is the numerator of FeatureDensity
+// (FeatureDensity returns TotalElements / InputSize).
+func TotalElements(s Sdbf) uint64 {
+	sd := s.(*sdbf)
+	var total uint64
+	for i := uint32(0); i < sd.bfCount; i++ {
+		total += uint64(sd.elemCount(i))
+	}
+	return total
+}
